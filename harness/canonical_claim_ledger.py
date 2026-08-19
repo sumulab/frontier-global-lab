@@ -401,6 +401,16 @@ def _validate_event(
             issues,
         )
 
+        if "creation_provenance" in payload:
+            _validate_creation_provenance(
+                schema,
+                payload[
+                    "creation_provenance"
+                ],
+                line_number,
+                issues,
+            )
+
     elif event_type == "claim_reviewed":
         for field in (
             "as_of",
@@ -633,6 +643,430 @@ def _validate_event(
                         ),
                     )
                 )
+
+
+def _validate_timezone_timestamp(
+    value,
+    field,
+    line_number,
+    issues,
+):
+    if not isinstance(value, str):
+        issues.append(
+            ClaimLedgerIssue(
+                line=line_number,
+                field=field,
+                message=(
+                    "Must be an ISO 8601 "
+                    "timestamp string."
+                ),
+            )
+        )
+        return
+
+    try:
+        parsed = datetime.fromisoformat(
+            value
+        )
+    except ValueError:
+        issues.append(
+            ClaimLedgerIssue(
+                line=line_number,
+                field=field,
+                message=(
+                    "Must be a valid ISO 8601 "
+                    "timestamp."
+                ),
+            )
+        )
+        return
+
+    if (
+        parsed.tzinfo is None
+        or parsed.utcoffset() is None
+    ):
+        issues.append(
+            ClaimLedgerIssue(
+                line=line_number,
+                field=field,
+                message=(
+                    "Timestamp must include "
+                    "timezone information."
+                ),
+            )
+        )
+
+
+def _validate_creation_provenance(
+    schema,
+    provenance,
+    line_number,
+    issues,
+):
+    base = "payload.creation_provenance"
+
+    if not isinstance(provenance, dict):
+        issues.append(
+            ClaimLedgerIssue(
+                line=line_number,
+                field=base,
+                message=(
+                    "creation_provenance must "
+                    "be a mapping."
+                ),
+            )
+        )
+        return
+
+    basis = provenance.get("basis")
+
+    allowed_basis = schema.get(
+        "creation_provenance_basis_values",
+        [
+            "manual",
+            "research_evidence",
+        ],
+    )
+
+    if basis not in allowed_basis:
+        issues.append(
+            ClaimLedgerIssue(
+                line=line_number,
+                field=f"{base}.basis",
+                message=(
+                    "Unknown creation provenance "
+                    "basis."
+                ),
+            )
+        )
+
+    note = provenance.get("note")
+
+    if (
+        not isinstance(note, str)
+        or not note.strip()
+    ):
+        issues.append(
+            ClaimLedgerIssue(
+                line=line_number,
+                field=f"{base}.note",
+                message=(
+                    "Creation provenance requires "
+                    "a non-empty rationale."
+                ),
+            )
+        )
+
+    refs = provenance.get(
+        "evidence_refs"
+    )
+
+    if not isinstance(refs, list):
+        issues.append(
+            ClaimLedgerIssue(
+                line=line_number,
+                field=(
+                    f"{base}.evidence_refs"
+                ),
+                message=(
+                    "evidence_refs must be "
+                    "a list."
+                ),
+            )
+        )
+        return
+
+    if basis == "manual":
+        if refs:
+            issues.append(
+                ClaimLedgerIssue(
+                    line=line_number,
+                    field=(
+                        f"{base}.evidence_refs"
+                    ),
+                    message=(
+                        "Manual provenance must "
+                        "not include evidence_refs."
+                    ),
+                )
+            )
+
+        return
+
+    if basis != "research_evidence":
+        return
+
+    if not refs:
+        issues.append(
+            ClaimLedgerIssue(
+                line=line_number,
+                field=(
+                    f"{base}.evidence_refs"
+                ),
+                message=(
+                    "Research-evidence provenance "
+                    "requires at least one "
+                    "approved evidence snapshot."
+                ),
+            )
+        )
+        return
+
+    seen = set()
+
+    for index, ref in enumerate(refs):
+        ref_base = (
+            f"{base}.evidence_refs[{index}]"
+        )
+
+        if not isinstance(ref, dict):
+            issues.append(
+                ClaimLedgerIssue(
+                    line=line_number,
+                    field=ref_base,
+                    message=(
+                        "Evidence reference must "
+                        "be a mapping."
+                    ),
+                )
+            )
+            continue
+
+        for field in (
+            "evidence_id",
+            "research_claim_id",
+            "effective_claim",
+            "source_url",
+            "excerpt",
+        ):
+            value = ref.get(field)
+
+            if (
+                not isinstance(value, str)
+                or not value.strip()
+            ):
+                issues.append(
+                    ClaimLedgerIssue(
+                        line=line_number,
+                        field=(
+                            f"{ref_base}.{field}"
+                        ),
+                        message=(
+                            "Must be a non-empty "
+                            "string."
+                        ),
+                    )
+                )
+
+        content_hash = ref.get(
+            "source_content_hash"
+        )
+
+        if (
+            content_hash is not None
+            and (
+                not isinstance(
+                    content_hash,
+                    str,
+                )
+                or not content_hash.strip()
+            )
+        ):
+            issues.append(
+                ClaimLedgerIssue(
+                    line=line_number,
+                    field=(
+                        f"{ref_base}."
+                        "source_content_hash"
+                    ),
+                    message=(
+                        "Must be a non-empty "
+                        "string or null."
+                    ),
+                )
+            )
+
+        run = ref.get("run")
+
+        if not isinstance(run, dict):
+            issues.append(
+                ClaimLedgerIssue(
+                    line=line_number,
+                    field=f"{ref_base}.run",
+                    message=(
+                        "Run snapshot must be "
+                        "a mapping."
+                    ),
+                )
+            )
+            run_id = None
+
+        else:
+            for field in (
+                "run_id",
+                "workflow_id",
+            ):
+                value = run.get(field)
+
+                if (
+                    not isinstance(value, str)
+                    or not value.strip()
+                ):
+                    issues.append(
+                        ClaimLedgerIssue(
+                            line=line_number,
+                            field=(
+                                f"{ref_base}."
+                                f"run.{field}"
+                            ),
+                            message=(
+                                "Must be a "
+                                "non-empty string."
+                            ),
+                        )
+                    )
+
+            for field in (
+                "completed_at",
+                "research_as_of",
+            ):
+                _validate_timezone_timestamp(
+                    run.get(field),
+                    (
+                        f"{ref_base}."
+                        f"run.{field}"
+                    ),
+                    line_number,
+                    issues,
+                )
+
+            run_id = run.get("run_id")
+
+        evidence_id = ref.get(
+            "evidence_id"
+        )
+
+        if (
+            isinstance(run_id, str)
+            and run_id
+            and isinstance(
+                evidence_id,
+                str,
+            )
+            and evidence_id
+        ):
+            identity = (
+                run_id,
+                evidence_id,
+            )
+
+            if identity in seen:
+                issues.append(
+                    ClaimLedgerIssue(
+                        line=line_number,
+                        field=(
+                            f"{ref_base}."
+                            "evidence_id"
+                        ),
+                        message=(
+                            "Duplicate evidence "
+                            "reference."
+                        ),
+                    )
+                )
+            else:
+                seen.add(identity)
+
+        review = ref.get("review")
+
+        if not isinstance(review, dict):
+            issues.append(
+                ClaimLedgerIssue(
+                    line=line_number,
+                    field=(
+                        f"{ref_base}.review"
+                    ),
+                    message=(
+                        "Evidence review snapshot "
+                        "must be a mapping."
+                    ),
+                )
+            )
+            continue
+
+        if (
+            review.get("decision")
+            != "approved"
+        ):
+            issues.append(
+                ClaimLedgerIssue(
+                    line=line_number,
+                    field=(
+                        f"{ref_base}."
+                        "review.decision"
+                    ),
+                    message=(
+                        "Canonical promotion "
+                        "requires an approved "
+                        "evidence review snapshot."
+                    ),
+                )
+            )
+
+        reviewer = review.get(
+            "reviewer"
+        )
+
+        if (
+            not isinstance(reviewer, str)
+            or not reviewer.strip()
+        ):
+            issues.append(
+                ClaimLedgerIssue(
+                    line=line_number,
+                    field=(
+                        f"{ref_base}."
+                        "review.reviewer"
+                    ),
+                    message=(
+                        "Approved evidence review "
+                        "requires a reviewer."
+                    ),
+                )
+            )
+
+        _validate_timezone_timestamp(
+            review.get("reviewed_at"),
+            (
+                f"{ref_base}."
+                "review.reviewed_at"
+            ),
+            line_number,
+            issues,
+        )
+
+        review_note = review.get("note")
+
+        if (
+            review_note is not None
+            and not isinstance(
+                review_note,
+                str,
+            )
+        ):
+            issues.append(
+                ClaimLedgerIssue(
+                    line=line_number,
+                    field=(
+                        f"{ref_base}."
+                        "review.note"
+                    ),
+                    message=(
+                        "Review note must be "
+                        "a string or null."
+                    ),
+                )
+            )
 
 
 def _parse_payload_date(

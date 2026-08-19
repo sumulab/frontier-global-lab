@@ -1,5 +1,5 @@
 {
-  "schema_version": "0.1.0",
+  "schema_version": "0.2.0",
   "purpose": "Immutable event contract for the Git-tracked canonical claim ledger.",
   "common_required_fields": [
     "event_id",
@@ -19,7 +19,8 @@
         "text",
         "topic",
         "created_at",
-        "as_of"
+        "as_of",
+        "creation_provenance"
       ],
       "resulting_status": "needs_review",
       "allowed_previous_statuses": []
@@ -91,11 +92,13 @@
     "actor": "Human or controlled system identity responsible for the event.",
     "claim_id": "Stable canonical claim identifier.",
     "previous_event_id": "Previous event for the same canonical claim. Null only for claim_created.",
-    "payload": "Event-specific immutable data required to replay canonical claim state."
+    "payload": "Event-specific immutable data required to replay canonical claim state.",
+    "creation_provenance": "Immutable audit snapshot recording how a canonical claim entered persistent knowledge."
   },
   "rules": [
     "Every canonical claim begins with exactly one claim_created event.",
     "claim_created always creates a claim in needs_review status.",
+    "Every claim_created event must preserve creation provenance. Research-evidence promotion must reference approved evidence snapshots; manual promotion must preserve a non-empty rationale.",
     "A claim becomes active only through claim_reviewed.",
     "Events are append-only; existing ledger lines are never mutated by normal lifecycle operations.",
     "Every event after claim_created must reference the immediately preceding event for the same claim.",
@@ -112,5 +115,9 @@
   ],
   "review_scope_values": [
     "claim"
+  ],
+  "creation_provenance_basis_values": [
+    "manual",
+    "research_evidence"
   ]
 }
