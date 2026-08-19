@@ -71,8 +71,11 @@ def claim_ledger_path(
 
 def read_claim_ledger(
     root: Path,
+    *,
+    path: Path | None = None,
 ) -> ClaimLedgerValidationResult:
-    path = claim_ledger_path(root)
+    if path is None:
+        path = claim_ledger_path(root)
 
     if not path.exists():
         return ClaimLedgerValidationResult(
