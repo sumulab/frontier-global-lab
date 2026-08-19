@@ -16,6 +16,12 @@ class ClaimLedgerIssue:
 
 
 @dataclass(frozen=True)
+class _ParsedClaimEvent:
+    line_number: int
+    event: dict[str, Any]
+
+
+@dataclass(frozen=True)
 class ClaimLedgerValidationResult:
     valid: bool
     events: list[dict[str, Any]]
@@ -85,7 +91,7 @@ def read_claim_ledger(
 
     schema = load_claim_event_schema(root)
 
-    events: list[dict[str, Any]] = []
+    parsed_events: list[_ParsedClaimEvent] = []
     issues: list[ClaimLedgerIssue] = []
 
     for line_number, raw in enumerate(
@@ -131,27 +137,35 @@ def read_claim_ledger(
             issues,
         )
 
-        events.append(event)
+        parsed_events.append(
+            _ParsedClaimEvent(
+                line_number=line_number,
+                event=event,
+            )
+        )
 
     _validate_event_chains(
-        events,
+        parsed_events,
         issues,
     )
 
     _validate_claim_relations(
-        events,
+        parsed_events,
         issues,
     )
 
     _validate_lifecycle_transitions(
         schema,
-        events,
+        parsed_events,
         issues,
     )
 
     return ClaimLedgerValidationResult(
         valid=not issues,
-        events=events,
+        events=[
+            item.event
+            for item in parsed_events
+        ],
         issues=issues,
     )
 
@@ -686,7 +700,7 @@ def _validate_payload_date(
 
 def _validate_lifecycle_transitions(
     schema: dict,
-    events: list[dict[str, Any]],
+    events: list[_ParsedClaimEvent],
     issues: list[ClaimLedgerIssue],
 ) -> None:
     current_status: dict[str, str] = {}
@@ -696,10 +710,10 @@ def _validate_lifecycle_transitions(
         {},
     )
 
-    for line_number, event in enumerate(
-        events,
-        1,
-    ):
+    for item in events:
+        line_number = item.line_number
+        event = item.event
+
         claim_id = event.get(
             "claim_id"
         )
@@ -774,27 +788,26 @@ def _validate_lifecycle_transitions(
 
 
 def _validate_claim_relations(
-    events: list[dict[str, Any]],
+    events: list[_ParsedClaimEvent],
     issues: list[ClaimLedgerIssue],
 ) -> None:
     known_claims = {
-        event.get("claim_id")
-        for event in events
+        item.event.get("claim_id")
+        for item in events
         if (
-            event.get("event_type")
+            item.event.get("event_type")
             == "claim_created"
             and isinstance(
-                event.get("claim_id"),
+                item.event.get("claim_id"),
                 str,
             )
-            and event.get("claim_id")
+            and item.event.get("claim_id")
         )
     }
 
-    for line_number, event in enumerate(
-        events,
-        1,
-    ):
+    for item in events:
+        line_number = item.line_number
+        event = item.event
         event_type = event.get(
             "event_type"
         )
@@ -962,17 +975,17 @@ def _validate_claim_relations(
 
 
 def _validate_event_chains(
-    events: list[dict[str, Any]],
+    events: list[_ParsedClaimEvent],
     issues: list[ClaimLedgerIssue],
 ) -> None:
     seen_event_ids: set[str] = set()
     claim_heads: dict[str, str] = {}
     created_claims: set[str] = set()
 
-    for index, event in enumerate(
-        events,
-        1,
-    ):
+    for item in events:
+        index = item.line_number
+        event = item.event
+
         event_id = event.get(
             "event_id"
         )
