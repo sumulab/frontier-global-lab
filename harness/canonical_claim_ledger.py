@@ -398,30 +398,6 @@ def _validate_event(
             issues,
         )
 
-        created_at = _parse_payload_date(
-            payload.get("created_at")
-        )
-
-        as_of = _parse_payload_date(
-            payload.get("as_of")
-        )
-
-        if (
-            created_at
-            and as_of
-            and as_of < created_at
-        ):
-            issues.append(
-                ClaimLedgerIssue(
-                    line=line_number,
-                    field="payload.as_of",
-                    message=(
-                        "as_of cannot be earlier "
-                        "than created_at."
-                    ),
-                )
-            )
-
     elif event_type == "claim_reviewed":
         for field in (
             "as_of",

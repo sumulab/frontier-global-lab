@@ -106,6 +106,7 @@
     "A material factual replacement is represented by a new canonical claim plus an explicit lifecycle relationship, not by rewriting claim text.",
     "occurred_at must include timezone information.",
     "Canonical claim IDs and event IDs must remain stable across runtime index rebuilds.",
-    "Lifecycle events must follow the allowed previous-status transitions declared by their event type."
+    "Lifecycle events must follow the allowed previous-status transitions declared by their event type.",
+    "For claim_created, as_of may be earlier than created_at because historical real-world facts may enter canonical knowledge after the period they describe."
   ]
 }
