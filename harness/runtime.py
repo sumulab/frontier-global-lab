@@ -26,3 +26,63 @@ def new_run_dir(root: Path, workflow_id: str) -> Path:
     run_dir = root / "10_Harness/runtime/runs" / f"{stamp}-{workflow_id}"
     run_dir.mkdir(parents=True, exist_ok=False)
     return run_dir
+
+
+def resolve_runtime_policy(
+    config: dict,
+    task_class: str,
+    *,
+    mode: str = "standard",
+) -> dict:
+    """
+    Resolve runtime research budgets.
+
+    Priority:
+        mode override
+        -> task-class policy
+        -> global defaults
+    """
+    policy = config.get(
+        "runtime_policy",
+        {},
+    )
+
+    resolved = dict(
+        policy.get(
+            "defaults",
+            {},
+        )
+    )
+
+    task_policies = policy.get(
+        "task_classes",
+        {},
+    )
+
+    resolved.update(
+        task_policies.get(
+            task_class,
+            {},
+        )
+    )
+
+    modes = policy.get(
+        "modes",
+        {},
+    )
+
+    resolved.update(
+        modes.get(
+            mode,
+            {},
+        )
+    )
+
+    resolved["policy_version"] = (
+        policy.get("version")
+    )
+
+    resolved["task_class"] = task_class
+    resolved["mode"] = mode
+
+    return resolved

@@ -1,3 +1,8 @@
+---
+id: research
+version: 0.1.0
+---
+
 # Skill: Research
 
 ## 目标

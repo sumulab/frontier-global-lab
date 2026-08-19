@@ -52,5 +52,88 @@
   },
   "web_search": {
     "enabled": true
+  },
+  "runtime_policy": {
+    "version": "0.1.0",
+    "defaults": {
+      "max_turns": 12,
+      "timeout_seconds": 180,
+      "max_web_searches": 8,
+      "max_fetches": 8,
+      "max_new_evidence": 8
+    },
+    "task_classes": {
+      "local_light": {
+        "max_turns": 12,
+        "max_web_searches": 0,
+        "max_fetches": 0,
+        "max_new_evidence": 0
+      },
+      "local_vision": {
+        "max_turns": 12,
+        "max_web_searches": 0,
+        "max_fetches": 0,
+        "max_new_evidence": 0
+      },
+      "research_fast": {
+        "max_turns": 30,
+        "max_web_searches": 12,
+        "max_fetches": 10,
+        "max_new_evidence": 10
+      },
+      "research_deep": {
+        "max_turns": 50,
+        "max_web_searches": 25,
+        "max_fetches": 20,
+        "max_new_evidence": 20
+      }
+    },
+    "modes": {
+      "standard": {},
+      "augment": {
+        "max_turns": 18,
+        "max_web_searches": 6,
+        "max_fetches": 5,
+        "max_new_evidence": 4
+      }
+    }
+  },
+  "prompt_policy": {
+    "version": "0.1.0",
+    "base_profiles": [
+      "orchestrator"
+    ],
+    "task_classes": {
+      "local_light": [],
+      "local_vision": [],
+      "research_fast": [
+        "research_base",
+        "evidence_rules"
+      ],
+      "research_deep": [
+        "research_base",
+        "evidence_rules"
+      ]
+    }
+  },
+  "skill_policy": {
+    "version": "0.1.0",
+    "base_skills": [
+      "curator"
+    ],
+    "task_classes": {
+      "local_light": [
+        "research"
+      ],
+      "local_vision": [
+        "research"
+      ],
+      "research_fast": [
+        "research"
+      ],
+      "research_deep": [
+        "research"
+      ]
+    }
   }
 }

@@ -23,11 +23,50 @@ def _normalize_text(text: str) -> str:
 
 def build_web_tools(
     evidence_db: str | Path,
+    *,
+    runtime_policy: dict | None = None,
 ):
     service = WebEvidenceService(
         provider=TavilyWebProvider(),
         evidence_db=evidence_db,
     )
+
+    policy = runtime_policy or {}
+
+    limits = {
+        "searches": int(
+            policy.get("max_web_searches", 8)
+        ),
+        "fetches": int(
+            policy.get("max_fetches", 8)
+        ),
+        "new_evidence": int(
+            policy.get("max_new_evidence", 8)
+        ),
+    }
+
+    usage = {
+        "searches": 0,
+        "fetches": 0,
+        "new_evidence": 0,
+    }
+
+    def budget_exhausted(
+        resource: str,
+    ) -> str:
+        return json.dumps(
+            {
+                "status": "BUDGET_EXHAUSTED",
+                "resource": resource,
+                "used": usage[resource],
+                "limit": limits[resource],
+                "instruction": (
+                    "Do not retry this exhausted resource. "
+                    "Continue with existing evidence and finish the task."
+                ),
+            },
+            ensure_ascii=False,
+        )
 
     @function_tool
     def search_web(
@@ -45,6 +84,11 @@ def build_web_tools(
             max_results: Maximum number of results.
             domains_csv: Optional comma-separated domain allowlist.
         """
+        if usage["searches"] >= limits["searches"]:
+            return budget_exhausted("searches")
+
+        usage["searches"] += 1
+
         domains = [
             item.strip()
             for item in domains_csv.split(",")
@@ -88,6 +132,11 @@ def build_web_tools(
             max_chars: Maximum page characters returned to the model.
                 The complete page is still stored in the evidence database.
         """
+        if usage["fetches"] >= limits["fetches"]:
+            return budget_exhausted("fetches")
+
+        usage["fetches"] += 1
+
         page = service.fetch(url)
 
         payload = {
@@ -134,6 +183,9 @@ def build_web_tools(
         This records machine-assessed evidence only; it does not perform
         human verification or canonical promotion.
         """
+        if usage["new_evidence"] >= limits["new_evidence"]:
+            return budget_exhausted("new_evidence")
+
         if not service.store.is_fetched_source(source_url):
             raise ValueError(
                 "Evidence rejected: source has not been fetched."
@@ -202,6 +254,8 @@ def build_web_tools(
 
         service.store.add_claim(claim)
         service.store.add_evidence(evidence)
+
+        usage["new_evidence"] += 1
 
         return json.dumps(
             {

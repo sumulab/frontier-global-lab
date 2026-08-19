@@ -9,6 +9,8 @@ from .agent_runner import prepare_run, run_openai
 from .evidence_store import EvidenceStore
 from .kb import build_index, search
 from .runtime import load_config
+from .research_quality import evaluate_country_scan
+from .research_augment import augment_run
 
 
 def repo_root() -> Path:
@@ -102,6 +104,72 @@ def cmd_promote(args):
         f"-> {dest.relative_to(root)}"
     )
 
+
+def cmd_research_augment(args):
+    root = repo_root()
+
+    run_dir = augment_run(
+        root,
+        args.run_id,
+    )
+
+    print(
+        f"Completed augment run: "
+        f"{run_dir.relative_to(root)}"
+    )
+
+
+def cmd_quality(args):
+    root = repo_root()
+
+    db = _evidence_db_for_run(
+        root,
+        args.run_id,
+    )
+
+    report = evaluate_country_scan(db)
+
+    print(
+        "Coverage Quality: "
+        + ("PASS" if report.passed else "FAIL")
+    )
+
+    for check in report.checks:
+        mark = (
+            "PASS"
+            if check.passed
+            else "FAIL"
+        )
+
+        print(
+            f"{mark:4} "
+            f"{check.name}: "
+            f"{check.actual} "
+            f"(required {check.requirement})"
+        )
+
+    print()
+    print(
+        "Semantic Warnings: "
+        f"{len(report.warnings)}"
+    )
+
+    for warning in report.warnings:
+        ids = ", ".join(
+            warning.evidence_ids
+        )
+
+        print()
+        print(
+            f"WARN {warning.name}: "
+            f"{ids}"
+        )
+        print(
+            f"     {warning.detail}"
+        )
+
+    if not report.passed:
+        raise SystemExit(2)
 
 def cmd_status(args):
     root = repo_root()
@@ -585,6 +653,38 @@ def build_parser():
     )
     s.set_defaults(
         func=cmd_promote,
+    )
+
+    s = sub.add_parser(
+        "quality",
+        help="Evaluate research evidence quality for a run",
+    )
+    s.add_argument(
+        "run_id",
+    )
+    s.set_defaults(
+        func=cmd_quality,
+    )
+
+    research = sub.add_parser(
+        "research",
+        help="Research operations",
+    )
+
+    research_sub = research.add_subparsers(
+        dest="research_cmd",
+        required=True,
+    )
+
+    s = research_sub.add_parser(
+        "augment",
+        help="Incrementally fill research gaps for a completed run",
+    )
+    s.add_argument(
+        "run_id",
+    )
+    s.set_defaults(
+        func=cmd_research_augment,
     )
 
     s = sub.add_parser(

@@ -1,3 +1,8 @@
+---
+id: curator
+version: 0.1.0
+---
+
 # Skill: Knowledge Curator
 
 ## 目标

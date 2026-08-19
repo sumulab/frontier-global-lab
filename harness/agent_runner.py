@@ -1,11 +1,29 @@
 from __future__ import annotations
 
+from .runtime import resolve_runtime_policy
+
 import json
+import shutil
+from datetime import datetime, timezone
 from pathlib import Path
 
 from .kb import search
 from .providers import resolve_task_runtime
+from .prompt_policy import (
+    compose_prompt_profiles,
+    resolve_prompt_ids,
+)
+from .skill_policy import (
+    compose_skill_profiles,
+    resolve_skill_ids,
+)
 from .runtime import load_config, load_workflow, new_run_dir
+
+
+def _utc_now() -> str:
+    return datetime.now(
+        timezone.utc
+    ).isoformat()
 
 
 def build_context(root: Path, workflow: dict, limit: int = 5) -> str:
@@ -75,6 +93,7 @@ def prepare_run(root: Path, workflow_id: str) -> Path:
         json.dumps(
             {
                 "status": "prepared",
+                "prepared_at": _utc_now(),
                 "workflow_id": workflow_id,
                 "task_class": workflow.get(
                     "task_class",
@@ -90,7 +109,14 @@ def prepare_run(root: Path, workflow_id: str) -> Path:
     return run_dir
 
 
-def run_workflow(root: Path, workflow_id: str) -> Path:
+def run_workflow(
+    root: Path,
+    workflow_id: str,
+    *,
+    parent_run_id: str | None = None,
+    inherit_evidence: bool = False,
+    prompt_suffix: str | None = None,
+) -> Path:
     try:
         from agents import (
             Agent,
@@ -117,10 +143,64 @@ def run_workflow(root: Path, workflow_id: str) -> Path:
         task_class=task_class,
     )
 
+    run_mode = (
+        "augment"
+        if parent_run_id
+        else "standard"
+    )
+
+    runtime_policy = resolve_runtime_policy(
+        config,
+        runtime.task_class,
+        mode=run_mode,
+    )
+
+    prompt_ids, prompt_policy_version = (
+        resolve_prompt_ids(
+            config,
+            workflow,
+            runtime.task_class,
+        )
+    )
+
+    prompt_instructions, prompt_manifest = (
+        compose_prompt_profiles(
+            root,
+            prompt_ids,
+        )
+    )
+
+    skill_ids, skill_policy_version = (
+        resolve_skill_ids(
+            config,
+            workflow,
+            runtime.task_class,
+        )
+    )
+
+    skill_instructions, skill_manifest = (
+        compose_skill_profiles(
+            root,
+            skill_ids,
+        )
+    )
+
     run_dir = prepare_run(
         root,
         workflow_id,
     )
+
+    prepared_state = json.loads(
+        (run_dir / "state.json").read_text(
+            encoding="utf-8"
+        )
+    )
+
+    prepared_at = prepared_state.get(
+        "prepared_at"
+    )
+
+    started_at = _utc_now()
 
     draft_root = (
         root
@@ -220,66 +300,45 @@ def run_workflow(root: Path, workflow_id: str) -> Path:
             + target.relative_to(root).as_posix()
         )
 
-    skill_text = []
+    instructions = prompt_instructions
 
-    for skill in [
-        "research.md",
-        "curator.md",
-    ]:
-        skill_text.append(
-            (
-                root
-                / "10_Harness"
-                / "skills"
-                / skill
-            ).read_text(
-                encoding="utf-8"
-            )
+    if skill_instructions:
+        instructions += (
+            "\n\n"
+            + skill_instructions
         )
 
-    instructions = """
-You are the single Orchestrator for Frontier Global Lab.
+    (run_dir / "system_prompt.md").write_text(
+        instructions,
+        encoding="utf-8",
+    )
 
-Work evidence-first.
+    (run_dir / "skill_manifest.json").write_text(
+        json.dumps(
+            {
+                "skill_policy_version": (
+                    skill_policy_version
+                ),
+                "skills": skill_manifest,
+            },
+            ensure_ascii=False,
+            indent=2,
+        ),
+        encoding="utf-8",
+    )
 
-Search local canonical knowledge before creating new conclusions.
-
-Clearly distinguish:
-- facts
-- inferences
-- assumptions
-- unknowns
-
-You may write only draft artifacts through write_draft.
-Never claim canonical knowledge has been updated.
-
-Public web evidence may be used only when Frontier web tools
-are explicitly available.
-
-Web evidence rules:
-
-- search_web results are discovery only, not evidence.
-- fetch_web_page must be called before a source can support a claim.
-- record_claim_evidence must be used for claim-level evidence.
-- Machine-supported evidence is not HUMAN_VERIFIED.
-- Never treat a search snippet as verified evidence.
-- Evidence reasoning must explain only whether the fetched excerpt supports
-  the recorded claim itself.
-- Do not place downstream market conclusions or strategic inferences inside
-  evidence reasoning; record those separately as INFERENCE or ASSUMPTION.
-- Prefer atomic claims. When multiple sources support the same factual claim,
-  reuse the conceptual claim rather than inventing a different conclusion
-  for each source.
-- Scenario projections such as NZE or STEPS must be explicitly labeled as
-  projections, not historical facts.
-
-Before finishing, create every required output file
-listed in the workflow when the available evidence
-allows it.
-"""
-
-    instructions += "\n\n" + "\n\n".join(
-        skill_text
+    (run_dir / "prompt_manifest.json").write_text(
+        json.dumps(
+            {
+                "prompt_policy_version": (
+                    prompt_policy_version
+                ),
+                "profiles": prompt_manifest,
+            },
+            ensure_ascii=False,
+            indent=2,
+        ),
+        encoding="utf-8",
     )
 
     tools = [
@@ -298,9 +357,40 @@ allows it.
 
         evidence_db = run_dir / "evidence.sqlite"
 
+        if inherit_evidence:
+            if not parent_run_id:
+                raise ValueError(
+                    "inherit_evidence requires parent_run_id."
+                )
+
+            if Path(parent_run_id).name != parent_run_id:
+                raise ValueError(
+                    "Invalid parent_run_id."
+                )
+
+            parent_db = (
+                root
+                / "10_Harness"
+                / "runtime"
+                / "runs"
+                / parent_run_id
+                / "evidence.sqlite"
+            )
+
+            if not parent_db.exists():
+                raise FileNotFoundError(
+                    f"Parent evidence DB not found: {parent_db}"
+                )
+
+            shutil.copy2(
+                parent_db,
+                evidence_db,
+            )
+
         tools.extend(
             build_web_tools(
                 evidence_db=evidence_db,
+                runtime_policy=runtime_policy,
             )
         )
 
@@ -312,7 +402,7 @@ allows it.
     )
 
     session = SQLiteSession(
-        workflow_id,
+        run_dir.name,
         str(root / config["session_db"]),
     )
 
@@ -322,15 +412,39 @@ allows it.
         encoding="utf-8"
     )
 
+    if prompt_suffix:
+        prompt += (
+            "\n\n## Incremental Research Instructions\n"
+            + prompt_suffix.strip()
+        )
+
+        (run_dir / "prompt.md").write_text(
+            prompt,
+            encoding="utf-8",
+        )
+
     (run_dir / "state.json").write_text(
         json.dumps(
             {
                 "status": "running",
+                "prepared_at": prepared_at,
+                "started_at": started_at,
                 "workflow_id": workflow_id,
                 "task_class": runtime.task_class,
                 "provider": runtime.provider,
                 "model": runtime.model_name,
                 "transport": runtime.transport,
+                "run_mode": run_mode,
+                "parent_run_id": parent_run_id,
+                "runtime_policy": runtime_policy,
+                "prompt_policy_version": (
+                    prompt_policy_version
+                ),
+                "prompt_profiles": prompt_manifest,
+                "skill_policy_version": (
+                    skill_policy_version
+                ),
+                "skill_profiles": skill_manifest,
                 "draft_root": (
                     draft_root
                     .relative_to(root)
@@ -343,10 +457,13 @@ allows it.
         encoding="utf-8",
     )
 
+    max_turns = runtime_policy["max_turns"]
+
     result = Runner.run_sync(
         agent,
         prompt,
         session=session,
+        max_turns=max_turns,
     )
 
     (run_dir / "final_output.md").write_text(
@@ -354,15 +471,32 @@ allows it.
         encoding="utf-8",
     )
 
+    completed_at = _utc_now()
+
     (run_dir / "state.json").write_text(
         json.dumps(
             {
                 "status": "completed",
+                "prepared_at": prepared_at,
+                "started_at": started_at,
+                "completed_at": completed_at,
+                "research_as_of": completed_at,
                 "workflow_id": workflow_id,
                 "task_class": runtime.task_class,
                 "provider": runtime.provider,
                 "model": runtime.model_name,
                 "transport": runtime.transport,
+                "run_mode": run_mode,
+                "parent_run_id": parent_run_id,
+                "runtime_policy": runtime_policy,
+                "prompt_policy_version": (
+                    prompt_policy_version
+                ),
+                "prompt_profiles": prompt_manifest,
+                "skill_policy_version": (
+                    skill_policy_version
+                ),
+                "skill_profiles": skill_manifest,
                 "draft_root": (
                     draft_root
                     .relative_to(root)
