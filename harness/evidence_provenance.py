@@ -1,11 +1,37 @@
 from __future__ import annotations
 
+import re
+
 from pathlib import Path
 
 from .evidence_store import EvidenceStore
 from .review_provenance import (
     validate_review_runs,
 )
+
+
+_MARKDOWN_SELF_LINK_RE = re.compile(
+    r"^\[(https?://[^\]]+)\]\((https?://[^)]+)\)$"
+)
+
+
+def _normalize_source_url(
+    value: str,
+) -> str:
+    stripped = value.strip()
+
+    match = _MARKDOWN_SELF_LINK_RE.fullmatch(
+        stripped
+    )
+
+    if (
+        match
+        and match.group(1)
+        == match.group(2)
+    ):
+        return match.group(1)
+
+    return stripped
 
 
 def resolve_approved_evidence(
@@ -134,7 +160,9 @@ def resolve_approved_evidence(
             context["effective_claim"]
         ),
         "source_url": (
-            context["source_url"]
+            _normalize_source_url(
+                context["source_url"]
+            )
         ),
         "source_title": (
             context.get("source_title")
