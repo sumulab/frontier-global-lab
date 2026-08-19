@@ -61,7 +61,7 @@ def cmd_status(args):
     index_path = root / cfg["index_db"]
     runs = sorted([p for p in (root / "10_Harness/runtime/runs").glob("*") if p.is_dir()], reverse=True)
     drafts = [p for p in (root / "10_Harness/runtime/drafts").rglob("*.md")]
-    print("Frontier Global Lab v0.2")
+    print("Frontier Global Lab v0.2.1")
     print(f"Index: {'ready' if index_path.exists() else 'missing'}")
     print(f"Runs: {len(runs)}")
     print(f"Drafts awaiting review: {len(drafts)}")
