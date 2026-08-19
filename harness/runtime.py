@@ -4,10 +4,20 @@ import json
 from datetime import datetime
 from pathlib import Path
 
+from dotenv import load_dotenv
+
 
 def load_config(root: Path) -> dict:
-    return json.loads((root / "10_Harness/config.json").read_text(encoding="utf-8"))
+    load_dotenv(
+        root / ".env",
+        override=False,
+    )
 
+    return json.loads(
+        (root / "10_Harness/config.json").read_text(
+            encoding="utf-8"
+        )
+    )
 
 def load_workflow(root: Path, workflow_id: str) -> dict:
     path = root / "10_Harness/workflows" / f"{workflow_id.replace('-', '_')}.json"
