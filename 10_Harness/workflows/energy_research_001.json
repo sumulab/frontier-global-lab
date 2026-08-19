@@ -1,0 +1,25 @@
+{
+  "id": "energy-research-001",
+  "title": "全球分布式能源 / 微电网市场地图",
+  "goal": "建立第一版可验证的全球分布式能源与微电网市场地图，并形成后续海外对象研究与中国供应链研究的任务清单。",
+  "context_queries": [
+    "microgrid distributed energy off-grid energy market",
+    "energy research 001",
+    "international outreach energy",
+    "China supply chain solar wind battery inverter EMS"
+  ],
+  "required_outputs": [
+    "research_brief.md",
+    "assumptions.md",
+    "next_actions.md",
+    "sources.md"
+  ],
+  "instructions": [
+    "先读取本地知识库已有结论，避免重复研究。",
+    "需要外部事实时使用 web search，并区分事实、推断与待验证假设。",
+    "不要直接修改 canonical knowledge；所有新内容先写到 runtime/drafts。",
+    "优先回答：需求在哪里、客户是谁、现有方案是什么、我们可能提供什么价值。",
+    "结尾必须列出证据不足和下一步验证动作。",
+    "所有外部关键事实在 research_brief.md 中注明来源，并在 sources.md 记录来源名称、URL、发布日期/访问日期与其支持的结论。"
+  ]
+}

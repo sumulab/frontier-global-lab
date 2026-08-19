@@ -1,0 +1,11 @@
+[project]
+name = "frontier-global-lab"
+version = "0.2.0"
+description = "Local knowledge base + agent harness for Frontier Global Lab"
+requires-python = ">=3.11"
+dependencies = [
+  "openai-agents"
+]
+
+[project.scripts]
+lab = "harness.cli:main"

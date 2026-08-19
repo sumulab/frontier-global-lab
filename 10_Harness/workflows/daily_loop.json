@@ -1,0 +1,19 @@
+{
+  "id": "daily-loop",
+  "title": "Daily Operating Loop",
+  "goal": "把当天的学习、研究、研发、国际合作与复盘压缩为一个可执行闭环。",
+  "context_queries": [
+    "current strategy decisions roadmap",
+    "latest daily review next action",
+    "energy research outreach learning"
+  ],
+  "required_outputs": [
+    "daily_plan.md",
+    "daily_summary.md"
+  ],
+  "instructions": [
+    "每天只选择 1 个最重要结果作为 Primary Outcome。",
+    "同时允许 Learning / Research / Build / Outreach / Content 中最多 3 条辅助动作。",
+    "结束时写清：完成、未完成、发现、假设变化、明日第一动作。"
+  ]
+}

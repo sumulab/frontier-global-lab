@@ -1,0 +1,18 @@
+{
+  "version": "0.2.0",
+  "knowledge_root": ".",
+  "runtime_root": "10_Harness/runtime",
+  "index_db": "10_Harness/runtime/index/kb.sqlite",
+  "session_db": "10_Harness/runtime/sessions/agents.sqlite",
+  "default_model": "gpt-5.6-sol",
+  "canonical_write_policy": "human_only",
+  "agent_write_root": "10_Harness/runtime/drafts",
+  "retrieval": {
+    "mode": "fts5",
+    "default_limit": 8,
+    "semantic_rag": false
+  },
+  "web_search": {
+    "enabled": true
+  }
+}

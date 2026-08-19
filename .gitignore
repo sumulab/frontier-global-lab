@@ -1,0 +1,10 @@
+.env
+.venv/
+__pycache__/
+*.pyc
+10_Harness/runtime/index/*.sqlite
+10_Harness/runtime/sessions/*.sqlite
+10_Harness/runtime/runs/*
+!10_Harness/runtime/runs/.gitkeep
+10_Harness/runtime/drafts/*
+!10_Harness/runtime/drafts/.gitkeep
