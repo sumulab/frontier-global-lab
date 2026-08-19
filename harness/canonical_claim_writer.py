@@ -17,6 +17,9 @@ from .canonical_claim_ledger import (
 from .canonical_claim_projector import (
     project_claim_states,
 )
+from .evidence_provenance import (
+    resolve_approved_evidence,
+)
 from .canonical_claim_projector import (
     project_claim_states,
 )
@@ -179,6 +182,9 @@ def append_claim_created(
     text: str,
     topic: str,
     as_of: date,
+    provenance_basis: str,
+    provenance_note: str,
+    evidence_refs: list[tuple[str, str]] | None = None,
     actor: str,
     dry_run: bool = False,
 ) -> dict:
@@ -201,6 +207,79 @@ def append_claim_created(
     if not isinstance(as_of, date):
         raise ValueError(
             "as_of must be a date."
+        )
+
+    if provenance_basis not in {
+        "manual",
+        "research_evidence",
+    }:
+        raise ValueError(
+            "provenance_basis must be "
+            "'manual' or 'research_evidence'."
+        )
+
+    if (
+        not isinstance(
+            provenance_note,
+            str,
+        )
+        or not provenance_note.strip()
+    ):
+        raise ValueError(
+            "provenance_note must be a "
+            "non-empty rationale."
+        )
+
+    evidence_refs = list(
+        evidence_refs or []
+    )
+
+    if (
+        provenance_basis == "manual"
+        and evidence_refs
+    ):
+        raise ValueError(
+            "Manual canonical claim creation "
+            "must not include evidence refs."
+        )
+
+    if (
+        provenance_basis
+        == "research_evidence"
+        and not evidence_refs
+    ):
+        raise ValueError(
+            "Research-evidence canonical claim "
+            "creation requires at least one "
+            "run/evidence reference."
+        )
+
+    resolved_evidence = []
+
+    for index, ref in enumerate(
+        evidence_refs
+    ):
+        if (
+            not isinstance(
+                ref,
+                (tuple, list),
+            )
+            or len(ref) != 2
+        ):
+            raise ValueError(
+                "Each evidence ref must be "
+                "a (run_id, evidence_id) pair; "
+                f"invalid ref at index {index}."
+            )
+
+        run_id, evidence_id = ref
+
+        resolved_evidence.append(
+            resolve_approved_evidence(
+                root,
+                run_id=run_id,
+                evidence_id=evidence_id,
+            )
         )
 
     # The authoritative ledger must already
@@ -293,6 +372,15 @@ def append_claim_created(
                 now.date().isoformat()
             ),
             "as_of": as_of.isoformat(),
+            "creation_provenance": {
+                "basis": provenance_basis,
+                "evidence_refs": (
+                    resolved_evidence
+                ),
+                "note": (
+                    provenance_note.strip()
+                ),
+            },
         },
     }
 
