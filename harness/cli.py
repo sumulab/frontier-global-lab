@@ -15,6 +15,9 @@ from .runtime import (
 from .research_quality import evaluate_country_scan
 from .research_augment import augment_run
 from .temporal_report import build_temporal_health_report
+from .canonical_claim_report import (
+    build_canonical_claim_health_report,
+)
 from .temporal_review import review_temporal_document
 
 
@@ -240,6 +243,72 @@ def cmd_temporal_review(args):
         "next_review_at: "
         f"{updated['next_review_at']}"
     )
+
+
+def cmd_claim_status(args):
+    root = repo_root()
+
+    report = build_canonical_claim_health_report(
+        root
+    )
+
+    print("Canonical Claim Health")
+    print()
+
+    if not report.valid:
+        print("LEDGER INVALID")
+
+        for issue in report.issues:
+            print(
+                f"  {issue}"
+            )
+
+        raise SystemExit(2)
+
+    print(
+        f"Claims: {report.claim_count}"
+    )
+
+    if not report.rows:
+        return
+
+    print()
+
+    for row in report.rows:
+        review = (
+            "REVIEW_DUE"
+            if row.review_due
+            else "OK"
+        )
+
+        print(
+            row.claim_id,
+            row.status.upper(),
+            review,
+            f"[{row.knowledge_type}]",
+        )
+
+        print(
+            f"    knowledge: "
+            f"{row.knowledge_id}"
+        )
+
+        print(
+            f"    topic: {row.topic}"
+        )
+
+        print(
+            f"    as_of: {row.as_of}"
+        )
+
+        print(
+            f"    head: "
+            f"{row.head_event_id}"
+        )
+
+        print(
+            f"    {row.message}"
+        )
 
 
 def cmd_temporal_status(args):
@@ -792,6 +861,25 @@ def build_parser():
     )
     s.set_defaults(
         func=cmd_research_augment,
+    )
+
+    claim = sub.add_parser(
+        "claim",
+        help="Canonical claim operations",
+    )
+
+    claim_sub = claim.add_subparsers(
+        dest="claim_cmd",
+        required=True,
+    )
+
+    s = claim_sub.add_parser(
+        "status",
+        help="Show canonical claim health",
+    )
+
+    s.set_defaults(
+        func=cmd_claim_status,
     )
 
     temporal = sub.add_parser(
