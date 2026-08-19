@@ -107,6 +107,10 @@
     "occurred_at must include timezone information.",
     "Canonical claim IDs and event IDs must remain stable across runtime index rebuilds.",
     "Lifecycle events must follow the allowed previous-status transitions declared by their event type.",
-    "For claim_created, as_of may be earlier than created_at because historical real-world facts may enter canonical knowledge after the period they describe."
+    "For claim_created, as_of may be earlier than created_at because historical real-world facts may enter canonical knowledge after the period they describe.",
+    "Canonical claim review provenance uses scope 'claim'. Document-level scope semantics belong to Temporal Knowledge document review, not Canonical Claim review."
+  ],
+  "review_scope_values": [
+    "claim"
   ]
 }

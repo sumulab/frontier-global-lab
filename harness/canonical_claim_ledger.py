@@ -531,7 +531,14 @@ def _validate_event(
                 "scope"
             )
 
-            if scope != "full_document":
+            allowed_scopes = schema.get(
+                "review_scope_values",
+                [
+                    "claim",
+                ],
+            )
+
+            if scope not in allowed_scopes:
                 issues.append(
                     ClaimLedgerIssue(
                         line=line_number,
@@ -541,9 +548,12 @@ def _validate_event(
                             "scope"
                         ),
                         message=(
-                            "Canonical claim review "
-                            "currently requires "
-                            "full_document scope."
+                            f"Unknown canonical claim "
+                            f"review scope {scope!r}. "
+                            f"Allowed: "
+                            + ", ".join(
+                                allowed_scopes
+                            )
                         ),
                     )
                 )
