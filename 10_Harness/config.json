@@ -1,5 +1,5 @@
 {
-  "version": "0.3.0",
+  "version": "0.4.0",
   "knowledge_root": ".",
   "runtime_root": "10_Harness/runtime",
   "index_db": "10_Harness/runtime/index/kb.sqlite",
