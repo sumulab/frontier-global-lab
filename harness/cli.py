@@ -20,6 +20,7 @@ from .canonical_claim_report import (
 )
 from .canonical_claim_writer import (
     append_claim_created,
+    append_claim_reviewed,
 )
 from .temporal_review import review_temporal_document
 
@@ -313,6 +314,93 @@ def cmd_claim_create(args):
     )
     print(
         "initial_status: needs_review"
+    )
+
+    if not args.write:
+        print(
+            "No canonical ledger changes were made."
+        )
+
+
+def cmd_claim_review(args):
+    from datetime import date
+
+    root = repo_root()
+
+    try:
+        as_of = date.fromisoformat(
+            args.as_of
+        )
+    except ValueError as exc:
+        raise SystemExit(
+            "--as-of must use YYYY-MM-DD."
+        ) from exc
+
+    try:
+        event = append_claim_reviewed(
+            root,
+            args.claim_id,
+            as_of=as_of,
+            reviewer=args.reviewer,
+            basis=args.basis,
+            run_ids=args.run_id,
+            note=args.note,
+            actor=args.actor,
+            dry_run=not args.write,
+        )
+    except (
+        ValueError,
+        FileNotFoundError,
+        RuntimeError,
+    ) as exc:
+        raise SystemExit(str(exc)) from exc
+
+    action = (
+        "APPENDED"
+        if args.write
+        else "DRY RUN"
+    )
+
+    payload = event["payload"]
+    provenance = payload[
+        "review_provenance"
+    ]
+
+    print(
+        f"{action}: canonical claim review"
+    )
+    print(
+        f"event_id: {event['event_id']}"
+    )
+    print(
+        f"claim_id: {event['claim_id']}"
+    )
+    print(
+        "previous_event_id: "
+        f"{event['previous_event_id']}"
+    )
+    print(
+        f"as_of: {payload['as_of']}"
+    )
+    print(
+        "last_verified_at: "
+        f"{payload['last_verified_at']}"
+    )
+    print(
+        "next_review_at: "
+        f"{payload['next_review_at']}"
+    )
+    print(
+        f"reviewer: {provenance['reviewer']}"
+    )
+    print(
+        f"basis: {provenance['basis']}"
+    )
+    print(
+        f"runs: {len(provenance['runs'])}"
+    )
+    print(
+        "resulting_status: active"
     )
 
     if not args.write:
@@ -1016,6 +1104,85 @@ def build_parser():
 
     s.set_defaults(
         func=cmd_claim_create,
+    )
+
+    s = claim_sub.add_parser(
+        "review",
+        help=(
+            "Preview or append a canonical "
+            "claim review event"
+        ),
+    )
+
+    s.add_argument(
+        "claim_id",
+        help="Stable canonical claim ID",
+    )
+
+    s.add_argument(
+        "--as-of",
+        required=True,
+        help=(
+            "Real-world date through which "
+            "the claim was verified "
+            "(YYYY-MM-DD)"
+        ),
+    )
+
+    s.add_argument(
+        "--reviewer",
+        required=True,
+        help="Reviewer identity or role",
+    )
+
+    s.add_argument(
+        "--basis",
+        required=True,
+        choices=[
+            "manual",
+            "research_run",
+            "mixed",
+        ],
+        help="Basis used for the claim review",
+    )
+
+    s.add_argument(
+        "--run-id",
+        action="append",
+        default=[],
+        help=(
+            "Research run supporting the review; "
+            "repeat for multiple runs"
+        ),
+    )
+
+    s.add_argument(
+        "--note",
+        default=None,
+        help="Optional review audit note",
+    )
+
+    s.add_argument(
+        "--actor",
+        required=True,
+        help=(
+            "Human or controlled system "
+            "recording the review event"
+        ),
+    )
+
+    s.add_argument(
+        "--write",
+        action="store_true",
+        help=(
+            "Actually append to the canonical "
+            "ledger; without this flag the "
+            "command is a dry run"
+        ),
+    )
+
+    s.set_defaults(
+        func=cmd_claim_review,
     )
 
     temporal = sub.add_parser(
