@@ -61,7 +61,7 @@
     "next_review_at": "Date after which the document should be treated as requiring freshness review.",
     "supersedes": "Optional ID of an older canonical knowledge asset that this document formally replaces.",
     "superseded_by": "Optional ID of the canonical knowledge asset that formally replaces this document.",
-    "review_provenance": "Audit metadata describing who performed the review and what the review was based on. Active temporal knowledge must carry review provenance."
+    "review_provenance": "Audit metadata describing who performed the review, the review basis, the review scope, supporting research run snapshots, and the review rationale. Document-level activation currently requires full_document scope."
   },
   "status_semantics": {
     "active": "Current canonical knowledge and within its intended review lifecycle.",
@@ -118,5 +118,8 @@
     "workflow_id",
     "completed_at",
     "research_as_of"
+  ],
+  "review_scope_values": [
+    "full_document"
   ]
 }

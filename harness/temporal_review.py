@@ -102,6 +102,7 @@ def review_temporal_metadata(
     updated["review_provenance"] = {
         "reviewer": reviewer,
         "basis": basis,
+        "scope": "full_document",
         "runs": list(
             runs or []
         ),

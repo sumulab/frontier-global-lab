@@ -284,6 +284,31 @@ def validate_temporal_metadata(
                     )
                 )
 
+            scope = provenance.get(
+                "scope"
+            )
+
+            allowed_scopes = schema.get(
+                "review_scope_values",
+                [],
+            )
+
+            if scope not in allowed_scopes:
+                issues.append(
+                    TemporalValidationIssue(
+                        field=(
+                            "review_provenance.scope"
+                        ),
+                        message=(
+                            f"Unknown review scope "
+                            f"{scope!r}. Allowed: "
+                            + ", ".join(
+                                allowed_scopes
+                            )
+                        ),
+                    )
+                )
+
             runs = provenance.get(
                 "runs",
                 [],
@@ -523,6 +548,29 @@ def validate_temporal_metadata(
             )
 
             if (
+                basis in {
+                    "research_run",
+                    "mixed",
+                }
+                and (
+                    not isinstance(note, str)
+                    or not note.strip()
+                )
+            ):
+                issues.append(
+                    TemporalValidationIssue(
+                        field=(
+                            "review_provenance.note"
+                        ),
+                        message=(
+                            "A non-empty review rationale "
+                            f"is required for basis "
+                            f"{basis!r}."
+                        ),
+                    )
+                )
+
+            elif (
                 note is not None
                 and not isinstance(
                     note,
