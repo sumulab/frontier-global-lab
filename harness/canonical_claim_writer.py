@@ -4,6 +4,7 @@ import hashlib
 import json
 import os
 import tempfile
+import unicodedata
 
 from datetime import date
 from pathlib import Path
@@ -31,6 +32,19 @@ from .temporal_markdown import (
 
 def _sha256(data: bytes) -> str:
     return hashlib.sha256(data).hexdigest()
+
+
+def _normalize_claim_text(
+    value: str,
+) -> str:
+    normalized = unicodedata.normalize(
+        "NFKC",
+        value,
+    )
+
+    return " ".join(
+        normalized.split()
+    ).casefold()
 
 
 def _resolve_claim_owner(
@@ -200,6 +214,46 @@ def append_claim_created(
         document,
     )
 
+    normalized_text = _normalize_claim_text(
+        text
+    )
+
+    for existing in current.events:
+        if (
+            existing.get("event_type")
+            != "claim_created"
+        ):
+            continue
+
+        payload = existing.get(
+            "payload",
+            {},
+        )
+
+        if (
+            payload.get("knowledge_id")
+            != owner["knowledge_id"]
+        ):
+            continue
+
+        existing_text = payload.get(
+            "text"
+        )
+
+        if (
+            isinstance(existing_text, str)
+            and _normalize_claim_text(
+                existing_text
+            ) == normalized_text
+        ):
+            raise ValueError(
+                "Duplicate canonical claim refused: "
+                f"{existing.get('claim_id')} already "
+                "has the same normalized text under "
+                f"knowledge_id "
+                f"{owner['knowledge_id']!r}."
+            )
+
     config = load_config(root)
     now = project_now(config)
 
@@ -317,6 +371,40 @@ def append_claim_created(
         )
 
         temp_path = None
+
+        committed = read_claim_ledger(
+            root
+        )
+
+        if not committed.valid:
+            detail = "; ".join(
+                f"line {issue.line}: "
+                f"{issue.field}: "
+                f"{issue.message}"
+                for issue in committed.issues
+            )
+
+            raise RuntimeError(
+                "CRITICAL: canonical claim ledger "
+                "failed post-commit replay "
+                "verification. "
+                + detail
+            )
+
+        committed_events = [
+            item
+            for item in committed.events
+            if item.get("event_id")
+            == event["event_id"]
+        ]
+
+        if len(committed_events) != 1:
+            raise RuntimeError(
+                "CRITICAL: committed canonical "
+                "claim event could not be verified "
+                "exactly once in the authoritative "
+                "ledger."
+            )
 
     finally:
         if (
