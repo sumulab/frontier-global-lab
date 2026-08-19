@@ -18,6 +18,9 @@ from .temporal_report import build_temporal_health_report
 from .canonical_claim_report import (
     build_canonical_claim_health_report,
 )
+from .canonical_claim_writer import (
+    append_claim_created,
+)
 from .temporal_review import review_temporal_document
 
 
@@ -243,6 +246,79 @@ def cmd_temporal_review(args):
         "next_review_at: "
         f"{updated['next_review_at']}"
     )
+
+
+def cmd_claim_create(args):
+    from datetime import date
+
+    root = repo_root()
+
+    try:
+        as_of = date.fromisoformat(
+            args.as_of
+        )
+    except ValueError as exc:
+        raise SystemExit(
+            "--as-of must use YYYY-MM-DD."
+        ) from exc
+
+    document = (
+        root / args.document
+    ).resolve()
+
+    try:
+        event = append_claim_created(
+            root,
+            document,
+            text=args.text,
+            topic=args.topic,
+            as_of=as_of,
+            actor=args.actor,
+            dry_run=not args.write,
+        )
+    except (
+        ValueError,
+        FileNotFoundError,
+        RuntimeError,
+    ) as exc:
+        raise SystemExit(str(exc)) from exc
+
+    action = (
+        "APPENDED"
+        if args.write
+        else "DRY RUN"
+    )
+
+    payload = event["payload"]
+
+    print(
+        f"{action}: canonical claim"
+    )
+    print(
+        f"event_id: {event['event_id']}"
+    )
+    print(
+        f"claim_id: {event['claim_id']}"
+    )
+    print(
+        "knowledge: "
+        f"{payload['knowledge_id']} "
+        f"[{payload['knowledge_type']}]"
+    )
+    print(
+        f"topic: {payload['topic']}"
+    )
+    print(
+        f"as_of: {payload['as_of']}"
+    )
+    print(
+        "initial_status: needs_review"
+    )
+
+    if not args.write:
+        print(
+            "No canonical ledger changes were made."
+        )
 
 
 def cmd_claim_status(args):
@@ -880,6 +956,66 @@ def build_parser():
 
     s.set_defaults(
         func=cmd_claim_status,
+    )
+
+    s = claim_sub.add_parser(
+        "create",
+        help=(
+            "Preview or append a new "
+            "canonical claim"
+        ),
+    )
+
+    s.add_argument(
+        "document",
+        help=(
+            "Temporal Scope canonical "
+            "Markdown owner"
+        ),
+    )
+
+    s.add_argument(
+        "--text",
+        required=True,
+        help="Canonical factual proposition",
+    )
+
+    s.add_argument(
+        "--topic",
+        required=True,
+        help="Claim topic",
+    )
+
+    s.add_argument(
+        "--as-of",
+        required=True,
+        help=(
+            "Real-world date represented "
+            "by the claim (YYYY-MM-DD)"
+        ),
+    )
+
+    s.add_argument(
+        "--actor",
+        required=True,
+        help=(
+            "Human or controlled system "
+            "creating the canonical claim"
+        ),
+    )
+
+    s.add_argument(
+        "--write",
+        action="store_true",
+        help=(
+            "Actually append to the canonical "
+            "ledger; without this flag the "
+            "command is a dry run"
+        ),
+    )
+
+    s.set_defaults(
+        func=cmd_claim_create,
     )
 
     temporal = sub.add_parser(

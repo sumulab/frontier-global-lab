@@ -154,6 +154,7 @@ def append_claim_created(
     topic: str,
     as_of: date,
     actor: str,
+    dry_run: bool = False,
 ) -> dict:
     root = root.resolve()
 
@@ -295,6 +296,9 @@ def append_claim_created(
                 "ledger failed replay validation. "
                 + detail
             )
+
+        if dry_run:
+            return event
 
         # Optimistic concurrency guard:
         # refuse to overwrite if another writer
