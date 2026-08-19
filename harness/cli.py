@@ -11,6 +11,7 @@ from .kb import build_index, search
 from .runtime import load_config
 from .research_quality import evaluate_country_scan
 from .research_augment import augment_run
+from .temporal_report import build_temporal_health_report
 
 
 def repo_root() -> Path:
@@ -170,6 +171,42 @@ def cmd_quality(args):
 
     if not report.passed:
         raise SystemExit(2)
+
+def cmd_temporal_status(args):
+    root = repo_root()
+
+    report = build_temporal_health_report(
+        root
+    )
+
+    print("Temporal Knowledge Health")
+    print()
+
+    for item in report:
+        validity = (
+            "VALID"
+            if item.metadata_valid
+            else "INVALID"
+        )
+
+        review = (
+            "REVIEW_DUE"
+            if item.review_due
+            else "OK"
+        )
+
+        print(
+            validity,
+            review,
+            item.state.upper(),
+            item.path,
+            f"[{item.knowledge_type}]",
+        )
+
+        print(
+            f"    {item.message}"
+        )
+
 
 def cmd_status(args):
     root = repo_root()
@@ -685,6 +722,25 @@ def build_parser():
     )
     s.set_defaults(
         func=cmd_research_augment,
+    )
+
+    temporal = sub.add_parser(
+        "temporal",
+        help="Temporal knowledge operations",
+    )
+
+    temporal_sub = temporal.add_subparsers(
+        dest="temporal_cmd",
+        required=True,
+    )
+
+    s = temporal_sub.add_parser(
+        "status",
+        help="Show temporal knowledge health",
+    )
+
+    s.set_defaults(
+        func=cmd_temporal_status,
     )
 
     s = sub.add_parser(
