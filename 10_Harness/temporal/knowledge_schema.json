@@ -112,5 +112,11 @@
     "manual",
     "research_run",
     "mixed"
+  ],
+  "review_run_snapshot_fields": [
+    "run_id",
+    "workflow_id",
+    "completed_at",
+    "research_as_of"
   ]
 }

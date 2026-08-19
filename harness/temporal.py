@@ -3,7 +3,7 @@ from __future__ import annotations
 import json
 
 from dataclasses import dataclass
-from datetime import date
+from datetime import date, datetime
 from pathlib import Path
 from typing import Any
 
@@ -284,53 +284,239 @@ def validate_temporal_metadata(
                     )
                 )
 
-            run_ids = provenance.get(
-                "run_ids",
+            runs = provenance.get(
+                "runs",
                 [],
             )
 
-            if run_ids is None:
-                run_ids = []
+            if runs is None:
+                runs = []
 
-            if (
-                not isinstance(run_ids, list)
-                or any(
-                    not isinstance(item, str)
-                    or not item.strip()
-                    for item in run_ids
-                )
+            if not isinstance(
+                runs,
+                list,
             ):
                 issues.append(
                     TemporalValidationIssue(
                         field=(
-                            "review_provenance.run_ids"
+                            "review_provenance.runs"
                         ),
                         message=(
-                            "run_ids must be a list "
-                            "of non-empty strings."
+                            "runs must be a list."
                         ),
                     )
                 )
 
-            elif (
-                basis in {
-                    "research_run",
-                    "mixed",
-                }
-                and not run_ids
-            ):
-                issues.append(
-                    TemporalValidationIssue(
-                        field=(
-                            "review_provenance.run_ids"
-                        ),
-                        message=(
-                            f"At least one run_id is "
-                            f"required for basis "
-                            f"{basis!r}."
-                        ),
+            else:
+                required_run_fields = (
+                    schema.get(
+                        "review_run_snapshot_fields",
+                        [
+                            "run_id",
+                            "workflow_id",
+                            "completed_at",
+                            "research_as_of",
+                        ],
                     )
                 )
+
+                seen_run_ids = set()
+
+                for index, run in enumerate(
+                    runs
+                ):
+                    prefix = (
+                        "review_provenance."
+                        f"runs[{index}]"
+                    )
+
+                    if not isinstance(
+                        run,
+                        dict,
+                    ):
+                        issues.append(
+                            TemporalValidationIssue(
+                                field=prefix,
+                                message=(
+                                    "Run snapshot must "
+                                    "be a mapping."
+                                ),
+                            )
+                        )
+                        continue
+
+                    for field in required_run_fields:
+                        value = run.get(field)
+
+                        if (
+                            not isinstance(
+                                value,
+                                str,
+                            )
+                            or not value.strip()
+                        ):
+                            issues.append(
+                                TemporalValidationIssue(
+                                    field=(
+                                        f"{prefix}.{field}"
+                                    ),
+                                    message=(
+                                        "Required non-empty "
+                                        "string is missing."
+                                    ),
+                                )
+                            )
+
+                    run_id = run.get(
+                        "run_id"
+                    )
+
+                    if (
+                        isinstance(run_id, str)
+                        and run_id.strip()
+                    ):
+                        if run_id in seen_run_ids:
+                            issues.append(
+                                TemporalValidationIssue(
+                                    field=(
+                                        f"{prefix}.run_id"
+                                    ),
+                                    message=(
+                                        "Duplicate run_id "
+                                        "in provenance."
+                                    ),
+                                )
+                            )
+
+                        seen_run_ids.add(
+                            run_id
+                        )
+
+                    parsed_run_times = {}
+
+                    for field in (
+                        "completed_at",
+                        "research_as_of",
+                    ):
+                        value = run.get(field)
+
+                        if not isinstance(
+                            value,
+                            str,
+                        ):
+                            continue
+
+                        try:
+                            parsed = (
+                                datetime.fromisoformat(
+                                    value
+                                )
+                            )
+                        except ValueError:
+                            issues.append(
+                                TemporalValidationIssue(
+                                    field=(
+                                        f"{prefix}.{field}"
+                                    ),
+                                    message=(
+                                        "Must be a valid "
+                                        "ISO 8601 timestamp."
+                                    ),
+                                )
+                            )
+                            continue
+
+                        if (
+                            parsed.tzinfo is None
+                            or parsed.utcoffset()
+                            is None
+                        ):
+                            issues.append(
+                                TemporalValidationIssue(
+                                    field=(
+                                        f"{prefix}.{field}"
+                                    ),
+                                    message=(
+                                        "Timestamp must "
+                                        "include timezone "
+                                        "information."
+                                    ),
+                                )
+                            )
+                            continue
+
+                        parsed_run_times[
+                            field
+                        ] = parsed
+
+                    completed_at = (
+                        parsed_run_times.get(
+                            "completed_at"
+                        )
+                    )
+
+                    research_as_of = (
+                        parsed_run_times.get(
+                            "research_as_of"
+                        )
+                    )
+
+                    if (
+                        completed_at
+                        and research_as_of
+                        and research_as_of
+                        > completed_at
+                    ):
+                        issues.append(
+                            TemporalValidationIssue(
+                                field=(
+                                    f"{prefix}."
+                                    "research_as_of"
+                                ),
+                                message=(
+                                    "research_as_of "
+                                    "cannot be later "
+                                    "than completed_at."
+                                ),
+                            )
+                        )
+
+                if (
+                    basis in {
+                        "research_run",
+                        "mixed",
+                    }
+                    and not runs
+                ):
+                    issues.append(
+                        TemporalValidationIssue(
+                            field=(
+                                "review_provenance.runs"
+                            ),
+                            message=(
+                                "At least one run snapshot "
+                                f"is required for basis "
+                                f"{basis!r}."
+                            ),
+                        )
+                    )
+
+                if (
+                    basis == "manual"
+                    and runs
+                ):
+                    issues.append(
+                        TemporalValidationIssue(
+                            field=(
+                                "review_provenance.runs"
+                            ),
+                            message=(
+                                "Manual review must not "
+                                "include research runs; "
+                                "use basis 'mixed' instead."
+                            ),
+                        )
+                    )
 
             note = provenance.get(
                 "note"

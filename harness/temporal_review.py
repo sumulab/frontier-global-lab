@@ -19,7 +19,7 @@ def review_temporal_metadata(
     as_of: date,
     reviewer: str,
     basis: str,
-    run_ids: list[str] | None = None,
+    runs: list[dict[str, Any]] | None = None,
     note: str | None = None,
 ) -> dict[str, Any]:
     knowledge_type = metadata.get(
@@ -102,8 +102,8 @@ def review_temporal_metadata(
     updated["review_provenance"] = {
         "reviewer": reviewer,
         "basis": basis,
-        "run_ids": list(
-            run_ids or []
+        "runs": list(
+            runs or []
         ),
         "note": note,
     }
@@ -138,7 +138,7 @@ def _validate_review_runs(
         "research_run",
         "mixed",
     }:
-        return
+        return []
 
     runs_root = (
         root
@@ -146,6 +146,8 @@ def _validate_review_runs(
         / "runtime"
         / "runs"
     ).resolve()
+
+    snapshots = []
 
     for run_id in run_ids:
         if Path(run_id).name != run_id:
@@ -193,6 +195,41 @@ def _validate_review_runs(
                 f"{run_id}"
             )
 
+        required_snapshot_fields = (
+            "workflow_id",
+            "completed_at",
+            "research_as_of",
+        )
+
+        missing = [
+            field
+            for field in required_snapshot_fields
+            if not state.get(field)
+        ]
+
+        if missing:
+            raise ValueError(
+                f"Research run {run_id} is missing "
+                f"provenance fields: "
+                + ", ".join(missing)
+            )
+
+        snapshots.append(
+            {
+                "run_id": run_id,
+                "workflow_id": state[
+                    "workflow_id"
+                ],
+                "completed_at": state[
+                    "completed_at"
+                ],
+                "research_as_of": state[
+                    "research_as_of"
+                ],
+            }
+        )
+
+    return snapshots
 
 def review_temporal_document(
     root,
@@ -261,7 +298,7 @@ def review_temporal_document(
 
     schema = load_temporal_schema(root)
 
-    _validate_review_runs(
+    run_snapshots = _validate_review_runs(
         root,
         basis=basis,
         run_ids=run_ids,
@@ -274,7 +311,7 @@ def review_temporal_document(
         as_of=as_of,
         reviewer=reviewer,
         basis=basis,
-        run_ids=run_ids,
+        runs=run_snapshots,
         note=note,
     )
 
