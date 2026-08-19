@@ -27,6 +27,13 @@ class CanonicalClaimHealthRow:
     status: str
     review_due: bool
     as_of: str
+
+    creation_provenance_basis: str
+    creation_evidence_ids: tuple[str, ...]
+
+    review_provenance_basis: str | None
+    review_provenance_scope: str | None
+
     head_event_id: str
     message: str
 
@@ -98,6 +105,33 @@ def build_canonical_claim_health_report(
                     health.review_due
                 ),
                 as_of=claim.as_of,
+                creation_provenance_basis=(
+                    claim.creation_provenance[
+                        "basis"
+                    ]
+                ),
+                creation_evidence_ids=tuple(
+                    ref["evidence_id"]
+                    for ref in
+                    claim.creation_provenance.get(
+                        "evidence_refs",
+                        [],
+                    )
+                ),
+                review_provenance_basis=(
+                    claim.review_provenance[
+                        "basis"
+                    ]
+                    if claim.review_provenance
+                    else None
+                ),
+                review_provenance_scope=(
+                    claim.review_provenance[
+                        "scope"
+                    ]
+                    if claim.review_provenance
+                    else None
+                ),
                 head_event_id=(
                     claim.head_event_id
                 ),

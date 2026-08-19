@@ -516,6 +516,30 @@ def cmd_claim_status(args):
         )
 
         print(
+            "    provenance: "
+            f"{row.creation_provenance_basis}"
+        )
+
+        if row.creation_evidence_ids:
+            print(
+                "    evidence: "
+                + ", ".join(
+                    row.creation_evidence_ids
+                )
+            )
+
+        if (
+            row.review_provenance_basis
+            and row.review_provenance_scope
+        ):
+            print(
+                "    review: "
+                f"{row.review_provenance_basis}"
+                " / "
+                f"{row.review_provenance_scope}"
+            )
+
+        print(
             f"    head: "
             f"{row.head_event_id}"
         )
