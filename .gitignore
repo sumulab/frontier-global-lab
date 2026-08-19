@@ -9,3 +9,5 @@ __pycache__/
 10_Harness/runtime/drafts/*
 !10_Harness/runtime/drafts/.gitkeep
 *.egg-info/
+10_Harness/runtime/evidence/*
+!10_Harness/runtime/evidence/.gitkeep

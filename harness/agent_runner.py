@@ -253,9 +253,25 @@ Clearly distinguish:
 You may write only draft artifacts through write_draft.
 Never claim canonical knowledge has been updated.
 
-This runtime currently has Frontier local tools only.
-Do not claim that you searched the public web unless a
-Frontier web-search tool is explicitly available.
+Public web evidence may be used only when Frontier web tools
+are explicitly available.
+
+Web evidence rules:
+
+- search_web results are discovery only, not evidence.
+- fetch_web_page must be called before a source can support a claim.
+- record_claim_evidence must be used for claim-level evidence.
+- Machine-supported evidence is not HUMAN_VERIFIED.
+- Never treat a search snippet as verified evidence.
+- Evidence reasoning must explain only whether the fetched excerpt supports
+  the recorded claim itself.
+- Do not place downstream market conclusions or strategic inferences inside
+  evidence reasoning; record those separately as INFERENCE or ASSUMPTION.
+- Prefer atomic claims. When multiple sources support the same factual claim,
+  reuse the conceptual claim rather than inventing a different conclusion
+  for each source.
+- Scenario projections such as NZE or STEPS must be explicitly labeled as
+  projections, not historical facts.
 
 Before finishing, create every required output file
 listed in the workflow when the available evidence
@@ -271,6 +287,22 @@ allows it.
         read_knowledge_file,
         write_draft,
     ]
+
+    web_enabled = (
+        task_class in {"research_fast", "research_deep"}
+        and config.get("web_search", {}).get("enabled", False)
+    )
+
+    if web_enabled:
+        from .web_tools import build_web_tools
+
+        evidence_db = run_dir / "evidence.sqlite"
+
+        tools.extend(
+            build_web_tools(
+                evidence_db=evidence_db,
+            )
+        )
 
     agent = Agent(
         name="Frontier Orchestrator",

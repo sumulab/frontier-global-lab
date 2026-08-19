@@ -20,7 +20,14 @@
     "不要直接修改 canonical knowledge；所有新内容先写到 runtime/drafts。",
     "优先回答：需求在哪里、客户是谁、现有方案是什么、我们可能提供什么价值。",
     "结尾必须列出证据不足和下一步验证动作。",
-    "所有外部关键事实在 research_brief.md 中注明来源，并在 sources.md 记录来源名称、URL、发布日期/访问日期与其支持的结论。"
+    "所有外部关键事实在 research_brief.md 中注明来源，并在 sources.md 记录来源名称、URL、发布日期/访问日期与其支持的结论。",
+    "本次运行必须完成至少一条真实 Web Evidence 链路：search_web → fetch_web_page → record_claim_evidence。",
+    "优先验证 IEA 关于 2023 年全球无电人口约 7.5 亿这一事实；搜索时优先限定 iea.org。",
+    "search_web 返回的 snippet 只能用于发现来源，不能作为证据。",
+    "必须 fetch_web_page 后，从抓取正文中选择真实存在的原文 excerpt，再调用 record_claim_evidence。",
+    "research_brief.md 中只有已经 record_claim_evidence 的外部事实才可以标记为机器支持的事实；其余外部信息继续标记为待验证。",
+    "sources.md 必须区分 DISCOVERED、FETCHED、SUPPORTED 和 HUMAN_VERIFIED；机器 SUPPORTED 不得写成 HUMAN_VERIFIED。",
+    "在 next_actions.md 中记录本轮生成的 claim_id、evidence_id、source URL 和仍需人工审核的事项。"
   ],
   "task_class": "research_fast"
 }

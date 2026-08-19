@@ -2,9 +2,11 @@ from __future__ import annotations
 
 import argparse
 import shutil
+import sqlite3
 from pathlib import Path
 
 from .agent_runner import prepare_run, run_openai
+from .evidence_store import EvidenceStore
 from .kb import build_index, search
 from .runtime import load_config
 
@@ -23,79 +25,675 @@ def cmd_index(args):
 def cmd_search(args):
     root = repo_root()
     cfg = load_config(root)
-    hits = search(root / cfg["index_db"], args.query, args.limit)
+    hits = search(
+        root / cfg["index_db"],
+        args.query,
+        args.limit,
+    )
+
     for i, hit in enumerate(hits, 1):
-        print(f"[{i}] {hit.title}\n    {hit.path}\n    {hit.snippet}\n")
+        print(
+            f"[{i}] {hit.title}\n"
+            f"    {hit.path}\n"
+            f"    {hit.snippet}\n"
+        )
 
 
 def cmd_start(args):
-    run_dir = prepare_run(repo_root(), args.workflow)
-    print(f"Prepared run: {run_dir.relative_to(repo_root())}")
+    root = repo_root()
+    run_dir = prepare_run(root, args.workflow)
+    print(
+        f"Prepared run: "
+        f"{run_dir.relative_to(root)}"
+    )
 
 
 def cmd_run(args):
-    run_dir = run_openai(repo_root(), args.workflow)
-    print(f"Completed run: {run_dir.relative_to(repo_root())}")
+    root = repo_root()
+    run_dir = run_openai(root, args.workflow)
+    print(
+        f"Completed run: "
+        f"{run_dir.relative_to(root)}"
+    )
 
 
 def cmd_promote(args):
     root = repo_root()
     draft = (root / args.draft).resolve()
     dest = (root / args.destination).resolve()
-    if root.resolve() not in draft.parents or root.resolve() not in dest.parents:
-        raise SystemExit("Paths must be inside the repository")
+
+    if (
+        root.resolve() not in draft.parents
+        or root.resolve() not in dest.parents
+    ):
+        raise SystemExit(
+            "Paths must be inside the repository"
+        )
+
     if "10_Harness/runtime/drafts" not in draft.as_posix():
-        raise SystemExit("Only files under runtime/drafts can be promoted")
+        raise SystemExit(
+            "Only files under runtime/drafts "
+            "can be promoted"
+        )
+
     if "10_Harness/runtime" in dest.as_posix():
-        raise SystemExit("Destination must be canonical knowledge, not runtime")
+        raise SystemExit(
+            "Destination must be canonical "
+            "knowledge, not runtime"
+        )
+
     if not draft.exists():
-        raise SystemExit(f"Draft not found: {draft}")
-    dest.parent.mkdir(parents=True, exist_ok=True)
-    shutil.copy2(draft, dest)
-    print(f"Promoted {draft.relative_to(root)} -> {dest.relative_to(root)}")
+        raise SystemExit(
+            f"Draft not found: {draft}"
+        )
+
+    dest.parent.mkdir(
+        parents=True,
+        exist_ok=True,
+    )
+
+    shutil.copy2(
+        draft,
+        dest,
+    )
+
+    print(
+        f"Promoted {draft.relative_to(root)} "
+        f"-> {dest.relative_to(root)}"
+    )
 
 
 def cmd_status(args):
     root = repo_root()
     cfg = load_config(root)
+
     index_path = root / cfg["index_db"]
-    runs = sorted([p for p in (root / "10_Harness/runtime/runs").glob("*") if p.is_dir()], reverse=True)
-    drafts = [p for p in (root / "10_Harness/runtime/drafts").rglob("*.md")]
-    print("Frontier Global Lab v0.2.1")
-    print(f"Index: {'ready' if index_path.exists() else 'missing'}")
+
+    runs = sorted(
+        [
+            p
+            for p in (
+                root / "10_Harness/runtime/runs"
+            ).glob("*")
+            if p.is_dir()
+        ],
+        reverse=True,
+    )
+
+    drafts = [
+        p
+        for p in (
+            root / "10_Harness/runtime/drafts"
+        ).rglob("*.md")
+    ]
+
+    print(f"Frontier Global Lab v{cfg.get('version', 'unknown')}")
+    print(
+        f"Index: "
+        f"{'ready' if index_path.exists() else 'missing'}"
+    )
     print(f"Runs: {len(runs)}")
-    print(f"Drafts awaiting review: {len(drafts)}")
+    print(
+        f"Drafts awaiting review: "
+        f"{len(drafts)}"
+    )
+
     if runs:
-        print(f"Latest run: {runs[0].name}")
+        print(
+            f"Latest run: {runs[0].name}"
+        )
+
+
+def _evidence_db_for_run(
+    root: Path,
+    run_id: str,
+) -> Path:
+    if Path(run_id).name != run_id:
+        raise SystemExit(
+            "run-id must be a run directory name"
+        )
+
+    runs_root = (
+        root
+        / "10_Harness"
+        / "runtime"
+        / "runs"
+    ).resolve()
+
+    run_dir = (
+        runs_root / run_id
+    ).resolve()
+
+    if run_dir.parent != runs_root:
+        raise SystemExit(
+            "Invalid run-id"
+        )
+
+    if not run_dir.is_dir():
+        raise SystemExit(
+            f"Run not found: {run_id}"
+        )
+
+    db = run_dir / "evidence.sqlite"
+
+    if not db.exists():
+        raise SystemExit(
+            f"No evidence database for run: "
+            f"{run_id}"
+        )
+
+    return db
+
+
+def _evidence_rows(
+    db: Path,
+):
+    # Ensure older run databases receive newly added schema objects.
+    EvidenceStore(db)
+
+    conn = sqlite3.connect(db)
+    conn.row_factory = sqlite3.Row
+
+    rows = conn.execute(
+        """
+        SELECT
+            e.evidence_id,
+            e.claim_id,
+            c.text AS claim,
+            c.topic,
+            c.importance,
+            e.status,
+            e.source_url,
+            e.excerpt,
+            e.reasoning,
+            rev.claim_text AS revised_claim,
+            rev.reasoning AS revised_reasoning,
+            rev.revised_by AS revised_by,
+            rev.note AS revision_note,
+            rev.revised_at AS revised_at,
+            r.decision AS review_decision,
+            r.reviewer AS reviewer,
+            r.note AS review_note,
+            r.reviewed_at AS reviewed_at
+        FROM evidence e
+        JOIN claims c
+          ON c.claim_id = e.claim_id
+        LEFT JOIN evidence_revisions rev
+          ON rev.revision_id = (
+              SELECT MAX(rv2.revision_id)
+              FROM evidence_revisions rv2
+              WHERE rv2.evidence_id = e.evidence_id
+          )
+        LEFT JOIN evidence_reviews r
+          ON r.review_id = (
+              SELECT MAX(r2.review_id)
+              FROM evidence_reviews r2
+              WHERE r2.evidence_id = e.evidence_id
+          )
+        ORDER BY e.created_at
+        """
+    ).fetchall()
+
+    conn.close()
+    return rows
+
+
+def _evidence_row(
+    db: Path,
+    evidence_id: str,
+):
+    rows = _evidence_rows(db)
+
+    for row in rows:
+        if row["evidence_id"] == evidence_id:
+            return row
+
+    return None
+
+
+def _effective_review_state(row) -> str:
+    revised_at = row["revised_at"]
+    reviewed_at = row["reviewed_at"]
+
+    if revised_at and (
+        not reviewed_at
+        or revised_at > reviewed_at
+    ):
+        return "resubmitted"
+
+    return (
+        row["review_decision"]
+        or "unreviewed"
+    )
+
+
+def _effective_claim(row) -> str:
+    return (
+        row["revised_claim"]
+        or row["claim"]
+    )
+
+
+def _effective_reasoning(row) -> str:
+    return (
+        row["revised_reasoning"]
+        or row["reasoning"]
+    )
+
+
+def cmd_evidence_list(args):
+    root = repo_root()
+    db = _evidence_db_for_run(
+        root,
+        args.run_id,
+    )
+
+    rows = _evidence_rows(db)
+
+    if not rows:
+        print("No evidence found.")
+        return
+
+    for i, row in enumerate(rows, 1):
+        review = _effective_review_state(row)
+
+        print(
+            f"[{i}] {row['evidence_id']}"
+        )
+        print(
+            f"    status: {row['status']}"
+        )
+        print(
+            f"    review: {review}"
+        )
+        print(
+            f"    claim: {_effective_claim(row)}"
+        )
+        print(
+            f"    source: {row['source_url']}"
+        )
+        print()
+
+
+def cmd_evidence_show(args):
+    root = repo_root()
+    db = _evidence_db_for_run(
+        root,
+        args.run_id,
+    )
+
+    row = _evidence_row(
+        db,
+        args.evidence_id,
+    )
+
+    if row is None:
+        raise SystemExit(
+            f"Evidence not found: "
+            f"{args.evidence_id}"
+        )
+
+    print(
+        f"Evidence ID: {row['evidence_id']}"
+    )
+    print(
+        f"Claim ID: {row['claim_id']}"
+    )
+    print(
+        f"Topic: {row['topic']}"
+    )
+    print(
+        f"Importance: {row['importance']}"
+    )
+    print(
+        f"Machine assessment: "
+        f"{row['status']}"
+    )
+
+    print("\nClaim:")
+    print(_effective_claim(row))
+
+    print("\nSource:")
+    print(row["source_url"])
+
+    print("\nExcerpt:")
+    print(row["excerpt"])
+
+    print("\nMachine reasoning:")
+    print(_effective_reasoning(row))
+
+    if row["revised_at"]:
+        print("\nRevision:")
+        print(f"Revised by: {row['revised_by']}")
+        print(f"Revised at: {row['revised_at']}")
+        if row["revision_note"]:
+            print(f"Revision note: {row['revision_note']}")
+
+    print("\nHuman review:")
+    print(_effective_review_state(row))
+
+    if row["reviewer"]:
+        print(
+            f"Reviewer: {row['reviewer']}"
+        )
+
+    if row["reviewed_at"]:
+        print(
+            f"Reviewed at: "
+            f"{row['reviewed_at']}"
+        )
+
+    if row["review_note"]:
+        print(
+            f"Note: {row['review_note']}"
+        )
+
+
+def _record_review(
+    args,
+    decision: str,
+):
+    root = repo_root()
+    db = _evidence_db_for_run(
+        root,
+        args.run_id,
+    )
+
+    row = _evidence_row(
+        db,
+        args.evidence_id,
+    )
+
+    if row is None:
+        raise SystemExit(
+            f"Evidence not found: "
+            f"{args.evidence_id}"
+        )
+
+    store = EvidenceStore(db)
+
+    store.add_evidence_review(
+        evidence_id=args.evidence_id,
+        decision=decision,
+        reviewer=args.reviewer,
+        note=args.note,
+    )
+
+    print(
+        f"Evidence {args.evidence_id}: "
+        f"{decision}"
+    )
+
+
+def cmd_evidence_amend(args):
+    root = repo_root()
+    db = _evidence_db_for_run(
+        root,
+        args.run_id,
+    )
+
+    row = _evidence_row(
+        db,
+        args.evidence_id,
+    )
+
+    if row is None:
+        raise SystemExit(
+            f"Evidence not found: "
+            f"{args.evidence_id}"
+        )
+
+    claim_text = (
+        args.claim
+        or _effective_claim(row)
+    )
+
+    reasoning = (
+        args.reasoning
+        or _effective_reasoning(row)
+    )
+
+    store = EvidenceStore(db)
+
+    store.add_evidence_revision(
+        evidence_id=args.evidence_id,
+        claim_text=claim_text,
+        reasoning=reasoning,
+        revised_by=args.reviewer,
+        note=args.note,
+    )
+
+    print(
+        f"Evidence {args.evidence_id}: "
+        f"amended and resubmitted"
+    )
+
+
+def cmd_evidence_approve(args):
+    _record_review(
+        args,
+        "approved",
+    )
+
+
+def cmd_evidence_reject(args):
+    _record_review(
+        args,
+        "rejected",
+    )
+
+
+def cmd_evidence_revise(args):
+    _record_review(
+        args,
+        "needs_revision",
+    )
+
+
+def _add_review_args(parser):
+    parser.add_argument(
+        "run_id",
+    )
+    parser.add_argument(
+        "evidence_id",
+    )
+    parser.add_argument(
+        "--reviewer",
+        default="human",
+    )
+    parser.add_argument(
+        "--note",
+        default=None,
+    )
 
 
 def build_parser():
-    p = argparse.ArgumentParser(prog="lab", description="Frontier Global Lab harness")
-    sub = p.add_subparsers(dest="cmd", required=True)
-    s = sub.add_parser("index", help="Rebuild local FTS knowledge index")
-    s.set_defaults(func=cmd_index)
-    s = sub.add_parser("search", help="Search local knowledge")
-    s.add_argument("query")
-    s.add_argument("--limit", type=int, default=8)
-    s.set_defaults(func=cmd_search)
-    s = sub.add_parser("start", help="Prepare a workflow run/context pack without model calls")
-    s.add_argument("workflow")
-    s.set_defaults(func=cmd_start)
-    s = sub.add_parser("run", help="Run a workflow with the OpenAI Agents SDK")
-    s.add_argument("workflow")
-    s.set_defaults(func=cmd_run)
-    s = sub.add_parser("promote", help="Human-approved promotion of a draft into canonical knowledge")
-    s.add_argument("draft")
-    s.add_argument("destination")
-    s.set_defaults(func=cmd_promote)
-    s = sub.add_parser("status", help="Show harness status")
-    s.set_defaults(func=cmd_status)
+    p = argparse.ArgumentParser(
+        prog="lab",
+        description="Frontier Global Lab harness",
+    )
+
+    sub = p.add_subparsers(
+        dest="cmd",
+        required=True,
+    )
+
+    s = sub.add_parser(
+        "index",
+        help="Rebuild local FTS knowledge index",
+    )
+    s.set_defaults(
+        func=cmd_index,
+    )
+
+    s = sub.add_parser(
+        "search",
+        help="Search local knowledge",
+    )
+    s.add_argument(
+        "query",
+    )
+    s.add_argument(
+        "--limit",
+        type=int,
+        default=8,
+    )
+    s.set_defaults(
+        func=cmd_search,
+    )
+
+    s = sub.add_parser(
+        "start",
+        help=(
+            "Prepare a workflow run/context "
+            "pack without model calls"
+        ),
+    )
+    s.add_argument(
+        "workflow",
+    )
+    s.set_defaults(
+        func=cmd_start,
+    )
+
+    s = sub.add_parser(
+        "run",
+        help=(
+            "Run a workflow with the "
+            "configured model runtime"
+        ),
+    )
+    s.add_argument(
+        "workflow",
+    )
+    s.set_defaults(
+        func=cmd_run,
+    )
+
+    s = sub.add_parser(
+        "promote",
+        help=(
+            "Human-approved promotion of a "
+            "draft into canonical knowledge"
+        ),
+    )
+    s.add_argument(
+        "draft",
+    )
+    s.add_argument(
+        "destination",
+    )
+    s.set_defaults(
+        func=cmd_promote,
+    )
+
+    s = sub.add_parser(
+        "status",
+        help="Show harness status",
+    )
+    s.set_defaults(
+        func=cmd_status,
+    )
+
+    evidence = sub.add_parser(
+        "evidence",
+        help="Review run evidence",
+    )
+
+    evidence_sub = evidence.add_subparsers(
+        dest="evidence_cmd",
+        required=True,
+    )
+
+    s = evidence_sub.add_parser(
+        "list",
+        help="List evidence for a run",
+    )
+    s.add_argument(
+        "run_id",
+    )
+    s.set_defaults(
+        func=cmd_evidence_list,
+    )
+
+    s = evidence_sub.add_parser(
+        "show",
+        help="Show one evidence item",
+    )
+    s.add_argument(
+        "run_id",
+    )
+    s.add_argument(
+        "evidence_id",
+    )
+    s.set_defaults(
+        func=cmd_evidence_show,
+    )
+
+    s = evidence_sub.add_parser(
+        "amend",
+        help="Revise evidence and resubmit for review",
+    )
+    s.add_argument(
+        "run_id",
+    )
+    s.add_argument(
+        "evidence_id",
+    )
+    s.add_argument(
+        "--claim",
+        default=None,
+    )
+    s.add_argument(
+        "--reasoning",
+        default=None,
+    )
+    s.add_argument(
+        "--reviewer",
+        default="human",
+    )
+    s.add_argument(
+        "--note",
+        default=None,
+    )
+    s.set_defaults(
+        func=cmd_evidence_amend,
+    )
+
+    s = evidence_sub.add_parser(
+        "approve",
+        help="Approve evidence",
+    )
+    _add_review_args(s)
+    s.set_defaults(
+        func=cmd_evidence_approve,
+    )
+
+    s = evidence_sub.add_parser(
+        "reject",
+        help="Reject evidence",
+    )
+    _add_review_args(s)
+    s.set_defaults(
+        func=cmd_evidence_reject,
+    )
+
+    s = evidence_sub.add_parser(
+        "revise",
+        help="Mark evidence as needing revision",
+    )
+    _add_review_args(s)
+    s.set_defaults(
+        func=cmd_evidence_revise,
+    )
+
     return p
 
 
 def main():
     args = build_parser().parse_args()
     args.func(args)
+
 
 if __name__ == "__main__":
     main()
