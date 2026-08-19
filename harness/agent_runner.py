@@ -4,7 +4,6 @@ from .runtime import resolve_runtime_policy
 
 import json
 import shutil
-from datetime import datetime, timezone
 from pathlib import Path
 
 from .kb import search
@@ -17,13 +16,12 @@ from .skill_policy import (
     compose_skill_profiles,
     resolve_skill_ids,
 )
-from .runtime import load_config, load_workflow, new_run_dir
-
-
-def _utc_now() -> str:
-    return datetime.now(
-        timezone.utc
-    ).isoformat()
+from .runtime import (
+    load_config,
+    load_workflow,
+    new_run_dir,
+    project_now_iso,
+)
 
 
 def build_context(root: Path, workflow: dict, limit: int = 5) -> str:
@@ -52,6 +50,7 @@ def build_context(root: Path, workflow: dict, limit: int = 5) -> str:
 
 
 def prepare_run(root: Path, workflow_id: str) -> Path:
+    config = load_config(root)
     workflow = load_workflow(root, workflow_id)
     run_dir = new_run_dir(root, workflow_id)
 
@@ -93,7 +92,7 @@ def prepare_run(root: Path, workflow_id: str) -> Path:
         json.dumps(
             {
                 "status": "prepared",
-                "prepared_at": _utc_now(),
+                "prepared_at": project_now_iso(config),
                 "workflow_id": workflow_id,
                 "task_class": workflow.get(
                     "task_class",
@@ -200,7 +199,7 @@ def run_workflow(
         "prepared_at"
     )
 
-    started_at = _utc_now()
+    started_at = project_now_iso(config)
 
     draft_root = (
         root
@@ -471,7 +470,7 @@ def run_workflow(
         encoding="utf-8",
     )
 
-    completed_at = _utc_now()
+    completed_at = project_now_iso(config)
 
     (run_dir / "state.json").write_text(
         json.dumps(

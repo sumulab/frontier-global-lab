@@ -1,3 +1,8 @@
+---
+id: strategy-decisions
+knowledge_type: decision_log
+---
+
 # Decision Log
 
 记录所有会改变路线的重要决策。

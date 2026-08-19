@@ -1,0 +1,109 @@
+{
+  "schema_version": "0.1.0",
+  "description": "Temporal Knowledge Contract for Frontier Global Lab canonical knowledge.",
+  "knowledge_types": {
+    "strategy": {
+      "temporal": true,
+      "default_review_days": 30
+    },
+    "research": {
+      "temporal": true,
+      "default_review_days": 60
+    },
+    "company": {
+      "temporal": true,
+      "default_review_days": 60
+    },
+    "country": {
+      "temporal": true,
+      "default_review_days": 90
+    },
+    "supplier": {
+      "temporal": true,
+      "default_review_days": 60
+    },
+    "decision_log": {
+      "temporal": false,
+      "item_level_temporal": true
+    },
+    "reference": {
+      "temporal": false
+    },
+    "template": {
+      "temporal": false
+    },
+    "system": {
+      "temporal": false
+    }
+  },
+  "document_status": [
+    "active",
+    "needs_review",
+    "superseded",
+    "historical"
+  ],
+  "required_temporal_fields": [
+    "status",
+    "created_at",
+    "as_of"
+  ],
+  "optional_temporal_fields": [
+    "supersedes",
+    "superseded_by"
+  ],
+  "field_semantics": {
+    "id": "Stable canonical knowledge identifier. Must not change when the document content is revised.",
+    "knowledge_type": "Knowledge category used to determine temporal behavior and review policy.",
+    "status": "Current document-level lifecycle status.",
+    "created_at": "Date when this canonical knowledge asset was first created.",
+    "as_of": "The real-world date through which the document's current knowledge state is intended to be valid. This is not the file modification date.",
+    "last_verified_at": "Date when the document's important factual content was most recently reviewed against suitable evidence.",
+    "next_review_at": "Date after which the document should be treated as requiring freshness review.",
+    "supersedes": "Optional ID of an older canonical knowledge asset that this document formally replaces.",
+    "superseded_by": "Optional ID of the canonical knowledge asset that formally replaces this document."
+  },
+  "status_semantics": {
+    "active": "Current canonical knowledge and within its intended review lifecycle.",
+    "needs_review": "Canonical knowledge remains available but its freshness or factual validity requires review.",
+    "superseded": "The document has been formally replaced by another canonical knowledge asset.",
+    "historical": "The document is intentionally retained as a historical state and is not presented as current knowledge."
+  },
+  "rules": [
+    "Git history records document revisions; temporal metadata records real-world validity.",
+    "as_of must not be automatically replaced by file modification time.",
+    "A document may remain active even when individual claims later require review.",
+    "Document-level status contradicted is not supported in schema v0.1.0; contradiction belongs to claim-level lifecycle.",
+    "supersedes and superseded_by are used only for formal replacement of canonical knowledge assets, not routine edits.",
+    "Templates, reference documents, and system documentation do not require freshness review.",
+    "Decision logs use item-level dates and lifecycle rather than document-level freshness metadata.",
+    "Agent-generated drafts must not become canonical temporal knowledge without human promotion."
+  ],
+  "future_claim_lifecycle": {
+    "planned": true,
+    "statuses": [
+      "active",
+      "needs_review",
+      "superseded",
+      "contradicted",
+      "historical"
+    ]
+  },
+  "required_identity_fields": [
+    "id",
+    "knowledge_type"
+  ],
+  "timezone": {
+    "default": "Asia/Shanghai",
+    "utc_offset": "+08:00",
+    "semantics": "Human-facing project dates and timestamps use China Standard Time / Asia/Shanghai. Temporal knowledge date fields are interpreted using the project timezone unless a source explicitly carries another timezone."
+  },
+  "status_required_fields": {
+    "active": [
+      "last_verified_at",
+      "next_review_at"
+    ],
+    "needs_review": [],
+    "superseded": [],
+    "historical": []
+  }
+}

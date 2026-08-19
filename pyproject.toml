@@ -6,7 +6,8 @@ requires-python = ">=3.11"
 dependencies = [
   "openai-agents",
   "tavily-python",
-  "python-dotenv"
+  "python-dotenv",
+  "PyYAML"
 ]
 
 [project.scripts]

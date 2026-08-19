@@ -3,6 +3,7 @@ from __future__ import annotations
 import json
 from datetime import datetime
 from pathlib import Path
+from zoneinfo import ZoneInfo
 
 from dotenv import load_dotenv
 
@@ -19,6 +20,27 @@ def load_config(root: Path) -> dict:
         )
     )
 
+def project_now(
+    config: dict,
+) -> datetime:
+    timezone_name = config.get(
+        "project_timezone",
+        "Asia/Shanghai",
+    )
+
+    return datetime.now(
+        ZoneInfo(timezone_name)
+    )
+
+
+def project_now_iso(
+    config: dict,
+) -> str:
+    return project_now(
+        config
+    ).isoformat()
+
+
 def load_workflow(root: Path, workflow_id: str) -> dict:
     path = root / "10_Harness/workflows" / f"{workflow_id.replace('-', '_')}.json"
     if not path.exists():
@@ -32,9 +54,23 @@ def load_workflow(root: Path, workflow_id: str) -> dict:
 
 
 def new_run_dir(root: Path, workflow_id: str) -> Path:
-    stamp = datetime.now().strftime("%Y%m%d-%H%M%S")
-    run_dir = root / "10_Harness/runtime/runs" / f"{stamp}-{workflow_id}"
-    run_dir.mkdir(parents=True, exist_ok=False)
+    config = load_config(root)
+
+    stamp = project_now(
+        config
+    ).strftime("%Y%m%d-%H%M%S")
+
+    run_dir = (
+        root
+        / "10_Harness/runtime/runs"
+        / f"{stamp}-{workflow_id}"
+    )
+
+    run_dir.mkdir(
+        parents=True,
+        exist_ok=False,
+    )
+
     return run_dir
 
 

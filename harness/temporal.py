@@ -1,0 +1,367 @@
+from __future__ import annotations
+
+import json
+
+from dataclasses import dataclass
+from datetime import date
+from pathlib import Path
+from typing import Any
+
+
+@dataclass(frozen=True)
+class TemporalValidationIssue:
+    field: str
+    message: str
+
+
+@dataclass(frozen=True)
+class TemporalValidationResult:
+    valid: bool
+    issues: list[TemporalValidationIssue]
+
+
+def load_temporal_schema(
+    root: Path,
+) -> dict:
+    path = (
+        root
+        / "10_Harness"
+        / "temporal"
+        / "knowledge_schema.json"
+    )
+
+    if not path.exists():
+        raise FileNotFoundError(
+            f"Temporal schema not found: {path}"
+        )
+
+    return json.loads(
+        path.read_text(
+            encoding="utf-8"
+        )
+    )
+
+
+def knowledge_type_policy(
+    schema: dict,
+    knowledge_type: str,
+) -> dict:
+    policies = schema.get(
+        "knowledge_types",
+        {},
+    )
+
+    if knowledge_type not in policies:
+        raise ValueError(
+            f"Unknown knowledge_type: "
+            f"{knowledge_type}"
+        )
+
+    return policies[knowledge_type]
+
+
+def _validate_iso_date(
+    field: str,
+    value: Any,
+    issues: list[TemporalValidationIssue],
+) -> date | None:
+    if not isinstance(value, str):
+        issues.append(
+            TemporalValidationIssue(
+                field=field,
+                message=(
+                    "Must be an ISO date string "
+                    "in YYYY-MM-DD format."
+                ),
+            )
+        )
+        return None
+
+    try:
+        parsed = date.fromisoformat(value)
+    except ValueError:
+        issues.append(
+            TemporalValidationIssue(
+                field=field,
+                message=(
+                    "Invalid ISO date; expected "
+                    "YYYY-MM-DD."
+                ),
+            )
+        )
+        return None
+
+    return parsed
+
+
+def validate_temporal_metadata(
+    schema: dict,
+    metadata: dict,
+) -> TemporalValidationResult:
+    issues: list[TemporalValidationIssue] = []
+
+    for field in schema.get(
+        "required_identity_fields",
+        [
+            "id",
+            "knowledge_type",
+        ],
+    ):
+        value = metadata.get(field)
+
+        if value is None or value == "":
+            issues.append(
+                TemporalValidationIssue(
+                    field=field,
+                    message=(
+                        "Required identity field "
+                        "is missing."
+                    ),
+                )
+            )
+
+    knowledge_type = metadata.get(
+        "knowledge_type"
+    )
+
+    if not knowledge_type:
+        return TemporalValidationResult(
+            valid=False,
+            issues=issues,
+        )
+
+    try:
+        policy = knowledge_type_policy(
+            schema,
+            knowledge_type,
+        )
+    except ValueError as exc:
+        issues.append(
+            TemporalValidationIssue(
+                field="knowledge_type",
+                message=str(exc),
+            )
+        )
+
+        return TemporalValidationResult(
+            valid=False,
+            issues=issues,
+        )
+
+    # Non-temporal document types do not require
+    # document-level freshness metadata.
+    if not policy.get(
+        "temporal",
+        False,
+    ):
+        return TemporalValidationResult(
+            valid=True,
+            issues=[],
+        )
+
+    required = schema.get(
+        "required_temporal_fields",
+        [],
+    )
+
+    for field in required:
+        value = metadata.get(field)
+
+        if value is None or value == "":
+            issues.append(
+                TemporalValidationIssue(
+                    field=field,
+                    message="Required field is missing.",
+                )
+            )
+
+    knowledge_id = metadata.get("id")
+
+    if (
+        knowledge_id is not None
+        and (
+            not isinstance(
+                knowledge_id,
+                str,
+            )
+            or not knowledge_id.strip()
+        )
+    ):
+        issues.append(
+            TemporalValidationIssue(
+                field="id",
+                message=(
+                    "Must be a non-empty stable "
+                    "knowledge identifier."
+                ),
+            )
+        )
+
+    status = metadata.get("status")
+
+    status_required = (
+        schema.get(
+            "status_required_fields",
+            {},
+        ).get(
+            status,
+            [],
+        )
+    )
+
+    for field in status_required:
+        value = metadata.get(field)
+
+        if value is None or value == "":
+            issues.append(
+                TemporalValidationIssue(
+                    field=field,
+                    message=(
+                        f"Required when status "
+                        f"is '{status}'."
+                    ),
+                )
+            )
+
+    allowed_statuses = schema.get(
+        "document_status",
+        [],
+    )
+
+    if (
+        status is not None
+        and status not in allowed_statuses
+    ):
+        issues.append(
+            TemporalValidationIssue(
+                field="status",
+                message=(
+                    f"Unknown status '{status}'. "
+                    f"Allowed: "
+                    f"{', '.join(allowed_statuses)}"
+                ),
+            )
+        )
+
+    parsed_dates = {}
+
+    for field in (
+        "created_at",
+        "as_of",
+        "last_verified_at",
+        "next_review_at",
+    ):
+        value = metadata.get(field)
+
+        if value:
+            parsed_dates[field] = (
+                _validate_iso_date(
+                    field,
+                    value,
+                    issues,
+                )
+            )
+
+    created_at = parsed_dates.get(
+        "created_at"
+    )
+    as_of = parsed_dates.get(
+        "as_of"
+    )
+    last_verified_at = parsed_dates.get(
+        "last_verified_at"
+    )
+    next_review_at = parsed_dates.get(
+        "next_review_at"
+    )
+
+    if (
+        created_at
+        and as_of
+        and as_of < created_at
+    ):
+        issues.append(
+            TemporalValidationIssue(
+                field="as_of",
+                message=(
+                    "as_of cannot be earlier "
+                    "than created_at."
+                ),
+            )
+        )
+
+    if (
+        created_at
+        and last_verified_at
+        and last_verified_at < created_at
+    ):
+        issues.append(
+            TemporalValidationIssue(
+                field="last_verified_at",
+                message=(
+                    "last_verified_at cannot be "
+                    "earlier than created_at."
+                ),
+            )
+        )
+
+    if (
+        last_verified_at
+        and next_review_at
+        and next_review_at < last_verified_at
+    ):
+        issues.append(
+            TemporalValidationIssue(
+                field="next_review_at",
+                message=(
+                    "next_review_at cannot be "
+                    "earlier than "
+                    "last_verified_at."
+                ),
+            )
+        )
+
+    for field in (
+        "supersedes",
+        "superseded_by",
+    ):
+        value = metadata.get(field)
+
+        if (
+            value is not None
+            and not isinstance(
+                value,
+                str,
+            )
+        ):
+            issues.append(
+                TemporalValidationIssue(
+                    field=field,
+                    message=(
+                        "Must be a knowledge ID "
+                        "string or null."
+                    ),
+                )
+            )
+
+    if (
+        metadata.get("supersedes")
+        and metadata.get("superseded_by")
+        and metadata["supersedes"]
+        == metadata["superseded_by"]
+    ):
+        issues.append(
+            TemporalValidationIssue(
+                field="superseded_by",
+                message=(
+                    "supersedes and "
+                    "superseded_by cannot refer "
+                    "to the same knowledge ID."
+                ),
+            )
+        )
+
+    return TemporalValidationResult(
+        valid=not issues,
+        issues=issues,
+    )

@@ -1,3 +1,11 @@
+---
+id: half-year-roadmap
+knowledge_type: strategy
+status: needs_review
+created_at: "2026-08-19"
+as_of: "2026-08-19"
+---
+
 # Six-Month Roadmap
 
 ## Month 1 — Map

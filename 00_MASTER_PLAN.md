@@ -1,3 +1,11 @@
+---
+id: master-plan
+knowledge_type: strategy
+status: needs_review
+created_at: "2026-08-19"
+as_of: "2026-08-19"
+---
+
 # Master Plan — Frontier Global Lab
 
 ## 1. 使命

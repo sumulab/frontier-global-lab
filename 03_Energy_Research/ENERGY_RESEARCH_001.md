@@ -1,3 +1,11 @@
+---
+id: energy-research-001
+knowledge_type: research
+status: needs_review
+created_at: "2026-08-19"
+as_of: "2026-08-19"
+---
+
 # Energy Research 001 — 全球分布式能源 / 微电网市场地图
 
 ## 研究问题
