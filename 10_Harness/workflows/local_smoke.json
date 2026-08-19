@@ -1,0 +1,20 @@
+{
+  "id": "local-smoke",
+  "title": "Frontier Local Runtime Smoke Test",
+  "goal": "验证 Frontier Harness 能通过本地 Ollama 模型读取本地知识、调用 Frontier tools，并生成一个 draft。",
+  "task_class": "local_light",
+  "context_queries": [
+    "Frontier Global Lab",
+    "Energy Research 001"
+  ],
+  "required_outputs": [
+    "smoke_test.md"
+  ],
+  "instructions": [
+    "先使用 search_local_knowledge 搜索 Frontier Global Lab。",
+    "从本地知识中总结当前项目定位，控制在 5 条以内。",
+    "不要使用或声称使用公共互联网。",
+    "必须调用 write_draft 创建 smoke_test.md。",
+    "smoke_test.md 最后一行必须写：LOCAL_SMOKE_OK"
+  ]
+}

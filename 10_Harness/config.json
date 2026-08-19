@@ -1,10 +1,48 @@
 {
-  "version": "0.2.1",
+  "version": "0.2.2",
   "knowledge_root": ".",
   "runtime_root": "10_Harness/runtime",
   "index_db": "10_Harness/runtime/index/kb.sqlite",
   "session_db": "10_Harness/runtime/sessions/agents.sqlite",
-  "default_model": "gpt-5.6-sol",
+  "default_provider": "ollama",
+  "default_model": "qwen3.8:27b-mlx",
+  "providers": {
+    "ollama": {
+      "base_url": "http://127.0.0.1:11434/v1",
+      "default_model": "qwen3.8:27b-mlx"
+    },
+    "deepseek": {
+      "base_url": "https://api.deepseek.com",
+      "default_model": "deepseek-v4-flash",
+      "deep_model": "deepseek-v4-pro"
+    },
+    "openai": {
+      "base_url": "https://api.openai.com/v1",
+      "default_model": "gpt-5.6-sol"
+    }
+  },
+  "task_classes": {
+    "local_light": {
+      "provider": "ollama",
+      "model": "qwen3.8:27b-mlx",
+      "transport": "chat_completions"
+    },
+    "local_vision": {
+      "provider": "ollama",
+      "model": "qwen3.8:27b-mlx",
+      "transport": "chat_completions"
+    },
+    "research_fast": {
+      "provider": "deepseek",
+      "model": "deepseek-v4-flash",
+      "transport": "responses"
+    },
+    "research_deep": {
+      "provider": "deepseek",
+      "model": "deepseek-v4-pro",
+      "transport": "chat_completions"
+    }
+  },
   "canonical_write_policy": "human_only",
   "agent_write_root": "10_Harness/runtime/drafts",
   "retrieval": {
