@@ -29,6 +29,7 @@ class CanonicalClaimState:
     superseded_by_claim_id: str | None
     contradicted_by_claim_ids: tuple[str, ...]
 
+    creation_provenance: dict[str, Any]
     review_provenance: dict[str, Any] | None
 
 
@@ -70,6 +71,9 @@ def project_claim_states(
                 "head_event_id": event_id,
                 "superseded_by_claim_id": None,
                 "contradicted_by_claim_ids": (),
+                "creation_provenance": payload[
+                    "creation_provenance"
+                ],
                 "review_provenance": None,
             }
 
