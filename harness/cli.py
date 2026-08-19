@@ -8,10 +8,14 @@ from pathlib import Path
 from .agent_runner import prepare_run, run_openai
 from .evidence_store import EvidenceStore
 from .kb import build_index, search
-from .runtime import load_config
+from .runtime import (
+    load_config,
+    project_now,
+)
 from .research_quality import evaluate_country_scan
 from .research_augment import augment_run
 from .temporal_report import build_temporal_health_report
+from .temporal_review import review_temporal_document
 
 
 def repo_root() -> Path:
@@ -171,6 +175,68 @@ def cmd_quality(args):
 
     if not report.passed:
         raise SystemExit(2)
+
+def cmd_temporal_review(args):
+    from datetime import date
+
+    root = repo_root()
+    cfg = load_config(root)
+
+    try:
+        as_of = date.fromisoformat(
+            args.as_of
+        )
+    except ValueError as exc:
+        raise SystemExit(
+            "--as-of must use YYYY-MM-DD."
+        ) from exc
+
+    verified_on = project_now(
+        cfg
+    ).date()
+
+    document = (
+        root / args.document
+    ).resolve()
+
+    try:
+        updated = review_temporal_document(
+            root,
+            document,
+            verified_on=verified_on,
+            as_of=as_of,
+            dry_run=args.dry_run,
+        )
+    except (
+        ValueError,
+        FileNotFoundError,
+    ) as exc:
+        raise SystemExit(str(exc)) from exc
+
+    action = (
+        "DRY RUN"
+        if args.dry_run
+        else "UPDATED"
+    )
+
+    print(
+        f"{action}: {args.document}"
+    )
+    print(
+        f"status: {updated['status']}"
+    )
+    print(
+        f"as_of: {updated['as_of']}"
+    )
+    print(
+        "last_verified_at: "
+        f"{updated['last_verified_at']}"
+    )
+    print(
+        "next_review_at: "
+        f"{updated['next_review_at']}"
+    )
+
 
 def cmd_temporal_status(args):
     root = repo_root()
@@ -741,6 +807,39 @@ def build_parser():
 
     s.set_defaults(
         func=cmd_temporal_status,
+    )
+
+    s = temporal_sub.add_parser(
+        "review",
+        help=(
+            "Review temporal knowledge and "
+            "refresh its lifecycle metadata"
+        ),
+    )
+
+    s.add_argument(
+        "document",
+        help="Repository-relative Markdown path",
+    )
+
+    s.add_argument(
+        "--as-of",
+        required=True,
+        help=(
+            "Real-world date through which "
+            "the knowledge was verified "
+            "(YYYY-MM-DD)"
+        ),
+    )
+
+    s.add_argument(
+        "--dry-run",
+        action="store_true",
+        help="Preview metadata transition without writing",
+    )
+
+    s.set_defaults(
+        func=cmd_temporal_review,
     )
 
     s = sub.add_parser(

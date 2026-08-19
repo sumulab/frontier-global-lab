@@ -214,3 +214,27 @@ def scan_temporal_documents(
             )
 
     return results
+
+
+def write_markdown_front_matter(
+    path: Path,
+    metadata: dict,
+    body: str,
+) -> None:
+    front_matter = yaml.safe_dump(
+        metadata,
+        allow_unicode=True,
+        sort_keys=False,
+    ).strip()
+
+    text = (
+        "---\n"
+        + front_matter
+        + "\n---\n"
+        + body
+    )
+
+    path.write_text(
+        text,
+        encoding="utf-8",
+    )
