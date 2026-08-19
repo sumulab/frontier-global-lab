@@ -21,7 +21,8 @@
         "created_at",
         "as_of"
       ],
-      "resulting_status": "needs_review"
+      "resulting_status": "needs_review",
+      "allowed_previous_statuses": []
     },
     "claim_reviewed": {
       "required_payload_fields": [
@@ -30,20 +31,31 @@
         "next_review_at",
         "review_provenance"
       ],
-      "resulting_status": "active"
+      "resulting_status": "active",
+      "allowed_previous_statuses": [
+        "needs_review",
+        "active"
+      ]
     },
     "claim_marked_needs_review": {
       "required_payload_fields": [
         "reason"
       ],
-      "resulting_status": "needs_review"
+      "resulting_status": "needs_review",
+      "allowed_previous_statuses": [
+        "active"
+      ]
     },
     "claim_superseded": {
       "required_payload_fields": [
         "superseded_by_claim_id",
         "reason"
       ],
-      "resulting_status": "superseded"
+      "resulting_status": "superseded",
+      "allowed_previous_statuses": [
+        "active",
+        "needs_review"
+      ]
     },
     "claim_contradicted": {
       "required_payload_fields": [
@@ -53,13 +65,23 @@
       "optional_payload_fields": [
         "contradicted_by_claim_ids"
       ],
-      "resulting_status": "contradicted"
+      "resulting_status": "contradicted",
+      "allowed_previous_statuses": [
+        "active",
+        "needs_review"
+      ]
     },
     "claim_marked_historical": {
       "required_payload_fields": [
         "reason"
       ],
-      "resulting_status": "historical"
+      "resulting_status": "historical",
+      "allowed_previous_statuses": [
+        "active",
+        "needs_review",
+        "superseded",
+        "contradicted"
+      ]
     }
   },
   "field_semantics": {
@@ -83,6 +105,7 @@
     "claim_contradicted preserves the contradicted claim and its prior provenance.",
     "A material factual replacement is represented by a new canonical claim plus an explicit lifecycle relationship, not by rewriting claim text.",
     "occurred_at must include timezone information.",
-    "Canonical claim IDs and event IDs must remain stable across runtime index rebuilds."
+    "Canonical claim IDs and event IDs must remain stable across runtime index rebuilds.",
+    "Lifecycle events must follow the allowed previous-status transitions declared by their event type."
   ]
 }
