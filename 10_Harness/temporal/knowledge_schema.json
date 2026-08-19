@@ -60,7 +60,8 @@
     "last_verified_at": "Date when the document's important factual content was most recently reviewed against suitable evidence.",
     "next_review_at": "Date after which the document should be treated as requiring freshness review.",
     "supersedes": "Optional ID of an older canonical knowledge asset that this document formally replaces.",
-    "superseded_by": "Optional ID of the canonical knowledge asset that formally replaces this document."
+    "superseded_by": "Optional ID of the canonical knowledge asset that formally replaces this document.",
+    "review_provenance": "Audit metadata describing who performed the review and what the review was based on. Active temporal knowledge must carry review provenance."
   },
   "status_semantics": {
     "active": "Current canonical knowledge and within its intended review lifecycle.",
@@ -100,10 +101,16 @@
   "status_required_fields": {
     "active": [
       "last_verified_at",
-      "next_review_at"
+      "next_review_at",
+      "review_provenance"
     ],
     "needs_review": [],
     "superseded": [],
     "historical": []
-  }
+  },
+  "review_basis_values": [
+    "manual",
+    "research_run",
+    "mixed"
+  ]
 }

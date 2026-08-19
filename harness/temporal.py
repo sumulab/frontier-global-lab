@@ -223,6 +223,138 @@ def validate_temporal_metadata(
                 )
             )
 
+    provenance = metadata.get(
+        "review_provenance"
+    )
+
+    if provenance is not None:
+        if not isinstance(
+            provenance,
+            dict,
+        ):
+            issues.append(
+                TemporalValidationIssue(
+                    field="review_provenance",
+                    message="Must be a mapping.",
+                )
+            )
+        else:
+            reviewer = provenance.get(
+                "reviewer"
+            )
+
+            if (
+                not isinstance(reviewer, str)
+                or not reviewer.strip()
+            ):
+                issues.append(
+                    TemporalValidationIssue(
+                        field=(
+                            "review_provenance.reviewer"
+                        ),
+                        message=(
+                            "Reviewer must be a "
+                            "non-empty string."
+                        ),
+                    )
+                )
+
+            basis = provenance.get(
+                "basis"
+            )
+
+            allowed_basis = schema.get(
+                "review_basis_values",
+                [],
+            )
+
+            if basis not in allowed_basis:
+                issues.append(
+                    TemporalValidationIssue(
+                        field=(
+                            "review_provenance.basis"
+                        ),
+                        message=(
+                            f"Unknown review basis "
+                            f"{basis!r}. Allowed: "
+                            + ", ".join(
+                                allowed_basis
+                            )
+                        ),
+                    )
+                )
+
+            run_ids = provenance.get(
+                "run_ids",
+                [],
+            )
+
+            if run_ids is None:
+                run_ids = []
+
+            if (
+                not isinstance(run_ids, list)
+                or any(
+                    not isinstance(item, str)
+                    or not item.strip()
+                    for item in run_ids
+                )
+            ):
+                issues.append(
+                    TemporalValidationIssue(
+                        field=(
+                            "review_provenance.run_ids"
+                        ),
+                        message=(
+                            "run_ids must be a list "
+                            "of non-empty strings."
+                        ),
+                    )
+                )
+
+            elif (
+                basis in {
+                    "research_run",
+                    "mixed",
+                }
+                and not run_ids
+            ):
+                issues.append(
+                    TemporalValidationIssue(
+                        field=(
+                            "review_provenance.run_ids"
+                        ),
+                        message=(
+                            f"At least one run_id is "
+                            f"required for basis "
+                            f"{basis!r}."
+                        ),
+                    )
+                )
+
+            note = provenance.get(
+                "note"
+            )
+
+            if (
+                note is not None
+                and not isinstance(
+                    note,
+                    str,
+                )
+            ):
+                issues.append(
+                    TemporalValidationIssue(
+                        field=(
+                            "review_provenance.note"
+                        ),
+                        message=(
+                            "note must be a string "
+                            "or null."
+                        ),
+                    )
+                )
+
     allowed_statuses = schema.get(
         "document_status",
         [],

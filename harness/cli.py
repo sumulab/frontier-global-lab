@@ -205,6 +205,10 @@ def cmd_temporal_review(args):
             document,
             verified_on=verified_on,
             as_of=as_of,
+            reviewer=args.reviewer,
+            basis=args.basis,
+            run_ids=args.run_id,
+            note=args.note,
             dry_run=args.dry_run,
         )
     except (
@@ -830,6 +834,39 @@ def build_parser():
             "the knowledge was verified "
             "(YYYY-MM-DD)"
         ),
+    )
+
+    s.add_argument(
+        "--reviewer",
+        required=True,
+        help="Reviewer identity or role",
+    )
+
+    s.add_argument(
+        "--basis",
+        required=True,
+        choices=[
+            "manual",
+            "research_run",
+            "mixed",
+        ],
+        help="Basis used for the review",
+    )
+
+    s.add_argument(
+        "--run-id",
+        action="append",
+        default=[],
+        help=(
+            "Research run supporting the review; "
+            "repeat for multiple runs"
+        ),
+    )
+
+    s.add_argument(
+        "--note",
+        default=None,
+        help="Optional review audit note",
     )
 
     s.add_argument(

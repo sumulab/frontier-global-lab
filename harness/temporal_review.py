@@ -1,6 +1,8 @@
 from __future__ import annotations
 
+import json
 from datetime import date, timedelta
+from pathlib import Path
 from typing import Any
 
 from .temporal import (
@@ -15,6 +17,10 @@ def review_temporal_metadata(
     *,
     verified_on: date,
     as_of: date,
+    reviewer: str,
+    basis: str,
+    run_ids: list[str] | None = None,
+    note: str | None = None,
 ) -> dict[str, Any]:
     knowledge_type = metadata.get(
         "knowledge_type"
@@ -93,6 +99,15 @@ def review_temporal_metadata(
         + timedelta(days=review_days)
     ).isoformat()
 
+    updated["review_provenance"] = {
+        "reviewer": reviewer,
+        "basis": basis,
+        "run_ids": list(
+            run_ids or []
+        ),
+        "note": note,
+    }
+
     result = validate_temporal_metadata(
         schema,
         updated,
@@ -111,12 +126,84 @@ def review_temporal_metadata(
     return updated
 
 
+def _validate_review_runs(
+    root,
+    *,
+    basis,
+    run_ids,
+):
+    run_ids = list(run_ids or [])
+
+    if basis not in {
+        "research_run",
+        "mixed",
+    }:
+        return
+
+    runs_root = (
+        root
+        / "10_Harness"
+        / "runtime"
+        / "runs"
+    ).resolve()
+
+    for run_id in run_ids:
+        if Path(run_id).name != run_id:
+            raise ValueError(
+                f"Invalid run_id: {run_id!r}."
+            )
+
+        run_dir = (
+            runs_root / run_id
+        ).resolve()
+
+        if (
+            runs_root not in run_dir.parents
+            or not run_dir.is_dir()
+        ):
+            raise ValueError(
+                f"Research run not found: {run_id}"
+            )
+
+        state_path = (
+            run_dir / "state.json"
+        )
+
+        if not state_path.is_file():
+            raise ValueError(
+                f"Research run has no state.json: "
+                f"{run_id}"
+            )
+
+        try:
+            state = json.loads(
+                state_path.read_text(
+                    encoding="utf-8"
+                )
+            )
+        except json.JSONDecodeError as exc:
+            raise ValueError(
+                f"Research run has invalid state.json: "
+                f"{run_id}"
+            ) from exc
+
+        if state.get("status") != "completed":
+            raise ValueError(
+                f"Research run is not completed: "
+                f"{run_id}"
+            )
+
+
 def review_temporal_document(
     root,
     path,
     *,
     verified_on,
     as_of,
+    reviewer,
+    basis,
+    run_ids=None,
+    note=None,
     dry_run=False,
 ):
     from .temporal import load_temporal_schema
@@ -174,11 +261,21 @@ def review_temporal_document(
 
     schema = load_temporal_schema(root)
 
+    _validate_review_runs(
+        root,
+        basis=basis,
+        run_ids=run_ids,
+    )
+
     updated = review_temporal_metadata(
         schema,
         metadata,
         verified_on=verified_on,
         as_of=as_of,
+        reviewer=reviewer,
+        basis=basis,
+        run_ids=run_ids,
+        note=note,
     )
 
     if not dry_run:
