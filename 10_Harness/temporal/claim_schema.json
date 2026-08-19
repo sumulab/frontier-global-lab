@@ -1,0 +1,76 @@
+{
+  "schema_version": "0.1.0",
+  "purpose": "Persistent lifecycle contract for canonical knowledge claims. Research claims inside run-scoped evidence databases are not canonical claims.",
+  "claim_status": [
+    "active",
+    "needs_review",
+    "superseded",
+    "contradicted",
+    "historical"
+  ],
+  "required_identity_fields": [
+    "claim_id",
+    "knowledge_id",
+    "knowledge_type",
+    "text",
+    "topic"
+  ],
+  "required_temporal_fields": [
+    "status",
+    "created_at",
+    "as_of"
+  ],
+  "status_required_fields": {
+    "active": [
+      "last_verified_at",
+      "next_review_at"
+    ],
+    "needs_review": [],
+    "superseded": [],
+    "contradicted": [],
+    "historical": []
+  },
+  "relation_types": [
+    "supersedes",
+    "contradicts"
+  ],
+  "provenance_types": [
+    "research_evidence",
+    "manual"
+  ],
+  "field_semantics": {
+    "claim_id": "Stable canonical claim identifier assigned when a claim enters the persistent knowledge layer.",
+    "knowledge_id": "Stable ID of the canonical document or knowledge object that owns this claim.",
+    "knowledge_type": "Temporal knowledge type inherited from the owning canonical knowledge object.",
+    "text": "Canonical factual proposition. Material factual changes create a new canonical claim rather than silently rewriting this text.",
+    "topic": "Research or knowledge topic used for retrieval and review grouping.",
+    "status": "Current lifecycle state of the canonical claim.",
+    "created_at": "Project-timezone date when this canonical claim was first created.",
+    "as_of": "Real-world date through which the claim is intended to describe reality.",
+    "last_verified_at": "Most recent date on which the canonical claim was substantively revalidated.",
+    "next_review_at": "Date on which an active claim becomes due for freshness review.",
+    "relations": "Explicit lifecycle relationships to other canonical claims.",
+    "provenance": "Audit trail linking the canonical claim to research evidence or a documented manual basis."
+  },
+  "rules": [
+    "Run-scoped research claims and persistent canonical claims are different object classes.",
+    "A research claim does not become canonical merely because supporting evidence exists.",
+    "Canonical promotion requires an explicit human-controlled promotion step.",
+    "Canonical claim text is not silently rewritten when reality changes; create a new claim and relate it using supersedes when appropriate.",
+    "A contradicted claim remains in history and is not deleted.",
+    "A superseded claim remains queryable as historical knowledge.",
+    "Document-level active status does not imply every canonical claim is active.",
+    "Claim-level lifecycle changes must preserve provenance and history.",
+    "Templates, drafts, and unpromoted research output do not create canonical claims.",
+    "No automated agent may mark a canonical claim active without a defined review or promotion gate.",
+    "The Git-tracked canonical claim ledger is the authoritative persistent history.",
+    "The runtime SQLite canonical claim index is derived state and may be deleted and rebuilt.",
+    "Lifecycle history must not depend solely on mutable SQLite rows."
+  ],
+  "storage_semantics": {
+    "source_of_truth": "Git-tracked append-only JSONL ledger",
+    "runtime_index": "SQLite materialized view rebuilt from ledger",
+    "ledger_path": "10_Harness/temporal/canonical_claims.jsonl",
+    "runtime_index_path": "10_Harness/runtime/knowledge/canonical_claims.sqlite"
+  }
+}

@@ -136,5 +136,9 @@
       ]
     }
   },
-  "project_timezone": "Asia/Shanghai"
+  "project_timezone": "Asia/Shanghai",
+  "canonical_claim_store": {
+    "ledger": "10_Harness/temporal/canonical_claims.jsonl",
+    "index_db": "10_Harness/runtime/knowledge/canonical_claims.sqlite"
+  }
 }

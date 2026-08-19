@@ -11,3 +11,4 @@ __pycache__/
 *.egg-info/
 10_Harness/runtime/evidence/*
 !10_Harness/runtime/evidence/.gitkeep
+10_Harness/runtime/knowledge/*.sqlite

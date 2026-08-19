@@ -1,0 +1,88 @@
+{
+  "schema_version": "0.1.0",
+  "purpose": "Immutable event contract for the Git-tracked canonical claim ledger.",
+  "common_required_fields": [
+    "event_id",
+    "event_type",
+    "occurred_at",
+    "actor",
+    "claim_id",
+    "previous_event_id",
+    "payload"
+  ],
+  "event_types": {
+    "claim_created": {
+      "previous_event_id": null,
+      "required_payload_fields": [
+        "knowledge_id",
+        "knowledge_type",
+        "text",
+        "topic",
+        "created_at",
+        "as_of"
+      ],
+      "resulting_status": "needs_review"
+    },
+    "claim_reviewed": {
+      "required_payload_fields": [
+        "as_of",
+        "last_verified_at",
+        "next_review_at",
+        "review_provenance"
+      ],
+      "resulting_status": "active"
+    },
+    "claim_marked_needs_review": {
+      "required_payload_fields": [
+        "reason"
+      ],
+      "resulting_status": "needs_review"
+    },
+    "claim_superseded": {
+      "required_payload_fields": [
+        "superseded_by_claim_id",
+        "reason"
+      ],
+      "resulting_status": "superseded"
+    },
+    "claim_contradicted": {
+      "required_payload_fields": [
+        "reason",
+        "provenance"
+      ],
+      "optional_payload_fields": [
+        "contradicted_by_claim_ids"
+      ],
+      "resulting_status": "contradicted"
+    },
+    "claim_marked_historical": {
+      "required_payload_fields": [
+        "reason"
+      ],
+      "resulting_status": "historical"
+    }
+  },
+  "field_semantics": {
+    "event_id": "Globally unique immutable event identifier.",
+    "event_type": "Lifecycle operation applied to one canonical claim.",
+    "occurred_at": "Timezone-aware ISO 8601 project timestamp recording when the lifecycle event occurred.",
+    "actor": "Human or controlled system identity responsible for the event.",
+    "claim_id": "Stable canonical claim identifier.",
+    "previous_event_id": "Previous event for the same canonical claim. Null only for claim_created.",
+    "payload": "Event-specific immutable data required to replay canonical claim state."
+  },
+  "rules": [
+    "Every canonical claim begins with exactly one claim_created event.",
+    "claim_created always creates a claim in needs_review status.",
+    "A claim becomes active only through claim_reviewed.",
+    "Events are append-only; existing ledger lines are never mutated by normal lifecycle operations.",
+    "Every event after claim_created must reference the immediately preceding event for the same claim.",
+    "Event replay, not mutable ledger rows, determines current canonical claim state.",
+    "Automatic freshness expiry is derived from next_review_at and does not require a ledger event merely because the date passed.",
+    "claim_superseded does not delete the older claim.",
+    "claim_contradicted preserves the contradicted claim and its prior provenance.",
+    "A material factual replacement is represented by a new canonical claim plus an explicit lifecycle relationship, not by rewriting claim text.",
+    "occurred_at must include timezone information.",
+    "Canonical claim IDs and event IDs must remain stable across runtime index rebuilds."
+  ]
+}
