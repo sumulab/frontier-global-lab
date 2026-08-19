@@ -267,6 +267,36 @@ def cmd_claim_create(args):
         root / args.document
     ).resolve()
 
+    evidence_refs = []
+
+    for raw in args.evidence:
+        if ":" not in raw:
+            raise SystemExit(
+                "--evidence must use "
+                "RUN_ID:EVIDENCE_ID."
+            )
+
+        run_id, evidence_id = raw.split(
+            ":",
+            1,
+        )
+
+        if (
+            not run_id.strip()
+            or not evidence_id.strip()
+        ):
+            raise SystemExit(
+                "--evidence must use "
+                "RUN_ID:EVIDENCE_ID."
+            )
+
+        evidence_refs.append(
+            (
+                run_id.strip(),
+                evidence_id.strip(),
+            )
+        )
+
     try:
         event = append_claim_created(
             root,
@@ -274,6 +304,13 @@ def cmd_claim_create(args):
             text=args.text,
             topic=args.topic,
             as_of=as_of,
+            provenance_basis=(
+                args.provenance_basis
+            ),
+            provenance_note=(
+                args.provenance_note
+            ),
+            evidence_refs=evidence_refs,
             actor=args.actor,
             dry_run=not args.write,
         )
@@ -311,6 +348,19 @@ def cmd_claim_create(args):
     )
     print(
         f"as_of: {payload['as_of']}"
+    )
+
+    provenance = payload[
+        "creation_provenance"
+    ]
+
+    print(
+        "provenance_basis: "
+        f"{provenance['basis']}"
+    )
+    print(
+        "evidence_refs: "
+        f"{len(provenance['evidence_refs'])}"
     )
     print(
         "initial_status: needs_review"
@@ -1089,6 +1139,40 @@ def build_parser():
         help=(
             "Human or controlled system "
             "creating the canonical claim"
+        ),
+    )
+
+    s.add_argument(
+        "--provenance-basis",
+        required=True,
+        choices=[
+            "manual",
+            "research_evidence",
+        ],
+        help=(
+            "How the canonical claim entered "
+            "persistent knowledge"
+        ),
+    )
+
+    s.add_argument(
+        "--provenance-note",
+        required=True,
+        help=(
+            "Human rationale for canonical "
+            "claim creation"
+        ),
+    )
+
+    s.add_argument(
+        "--evidence",
+        action="append",
+        default=[],
+        metavar="RUN_ID:EVIDENCE_ID",
+        help=(
+            "Approved research evidence used "
+            "for promotion; repeat for multiple "
+            "evidence items"
         ),
     )
 
