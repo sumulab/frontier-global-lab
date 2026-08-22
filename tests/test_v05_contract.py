@@ -50,7 +50,7 @@ def _load_json(name: str) -> dict:
     )
 
 
-def test_schema_uses_one_lifecycle_vocabulary():
+def test_project_version_and_schema_use_one_lifecycle_vocabulary():
     project = tomllib.loads(
         (ROOT / "pyproject.toml").read_text(
             encoding="utf-8"
@@ -62,7 +62,7 @@ def test_schema_uses_one_lifecycle_vocabulary():
         )
     )
 
-    assert __version__ == "0.5.0"
+    assert __version__ == "0.6.0.dev0"
     assert project["project"]["version"] == __version__
     assert config["version"] == __version__
     assert project["build-system"] == {

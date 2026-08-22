@@ -1,0 +1,11 @@
+{
+  "action_id": "action-synthetic-001",
+  "contract_version": "cognitrace.frontier.receipt/0.1.0",
+  "errors": [],
+  "frontier_run_id": "run-synthetic-001",
+  "received_at": "2026-08-22T13:02:00Z",
+  "result_content_hash": "sha256:0f5fdea9b5cc45fa465cf5b69231b3cad7d22de8703a2f27cfbd1e3b0f3bfffc",
+  "status": "accepted",
+  "submission_id": "submission-synthetic-001",
+  "task_id": "task-synthetic-001"
+}

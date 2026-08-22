@@ -1,0 +1,47 @@
+{
+  "action_id": "action-synthetic-001",
+  "artifact_refs": [
+    {
+      "content_hash": "sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+      "media_type": "text/markdown",
+      "stable_id": "artifact-synthetic-001",
+      "uri": "frontier://runs/run-synthetic-001/artifacts/report"
+    }
+  ],
+  "completed_at": "2026-08-22T13:00:00Z",
+  "contract_version": "frontier.cognitrace.result/0.1.0",
+  "evidence_refs": [
+    {
+      "content_hash": "sha256:bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb",
+      "review_status": "approved",
+      "stable_id": "evidence-synthetic-001",
+      "uri": "frontier://runs/run-synthetic-001/evidence/evidence-synthetic-001"
+    }
+  ],
+  "frontier_run_id": "run-synthetic-001",
+  "result_content_hash": "sha256:0f5fdea9b5cc45fa465cf5b69231b3cad7d22de8703a2f27cfbd1e3b0f3bfffc",
+  "result_summary": "The synthetic run produced one reviewed artifact.",
+  "review": {
+    "reviewed_at": "2026-08-22T13:01:00Z",
+    "reviewed_by": "synthetic-reviewer",
+    "status": "approved"
+  },
+  "runtime_provenance": {
+    "budget": {
+      "limit": 1000,
+      "unit": "tokens",
+      "used": 400
+    },
+    "model": "synthetic-model-v1",
+    "prompt_refs": [
+      {
+        "content_hash": "sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+        "stable_id": "prompt-synthetic-001",
+        "uri": "frontier://prompts/prompt-synthetic-001"
+      }
+    ],
+    "provider": "synthetic",
+    "skill_refs": []
+  },
+  "task_id": "task-synthetic-001"
+}

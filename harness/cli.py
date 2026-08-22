@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import argparse
+import json
 import shutil
 import sqlite3
 from pathlib import Path
@@ -36,6 +37,15 @@ from .canonical_claim_writer import (
 )
 from .temporal_review import review_temporal_document
 from .project_root import resolve_project_root
+from .integration_contract import (
+    ContractValidationError,
+    load_contract,
+    seal_result,
+    validate_receipt,
+    validate_result,
+    validate_task,
+    verify_receipt,
+)
 
 
 _PROJECT_ROOT_OVERRIDE: Path | None = None
@@ -1268,6 +1278,74 @@ def _add_review_args(parser):
     )
 
 
+def _contract_failure(exc: ContractValidationError) -> None:
+    print("Contract validation failed:")
+    for issue in exc.issues:
+        print(
+            f"- {issue.code} {issue.field}: "
+            f"{issue.message}"
+        )
+    raise SystemExit(2)
+
+
+def cmd_integration_validate(args):
+    validators = {
+        "task": validate_task,
+        "result": validate_result,
+        "receipt": validate_receipt,
+    }
+    try:
+        document = load_contract(args.file)
+        validators[args.kind](document)
+    except (ContractValidationError, OSError) as exc:
+        if isinstance(exc, ContractValidationError):
+            _contract_failure(exc)
+        raise SystemExit(str(exc)) from exc
+    print(f"VALID {args.kind}: {args.file}")
+
+
+def cmd_integration_seal_result(args):
+    try:
+        document = load_contract(args.file)
+        sealed = seal_result(document)
+    except (ContractValidationError, OSError) as exc:
+        if isinstance(exc, ContractValidationError):
+            _contract_failure(exc)
+        raise SystemExit(str(exc)) from exc
+
+    serialized = json.dumps(
+        sealed,
+        ensure_ascii=False,
+        indent=2,
+        sort_keys=True,
+    ) + "\n"
+    if args.output is None:
+        print(serialized, end="")
+        return
+    args.output.write_text(serialized, encoding="utf-8")
+    print(
+        f"SEALED result: {args.output}\n"
+        f"result_content_hash: "
+        f"{sealed['result_content_hash']}"
+    )
+
+
+def cmd_integration_verify_receipt(args):
+    try:
+        result = load_contract(args.result)
+        receipt = load_contract(args.receipt)
+        verify_receipt(result, receipt)
+    except (ContractValidationError, OSError) as exc:
+        if isinstance(exc, ContractValidationError):
+            _contract_failure(exc)
+        raise SystemExit(str(exc)) from exc
+    print(
+        f"VERIFIED receipt: {args.receipt}\n"
+        f"result: {args.result}\n"
+        f"status: {receipt['status']}"
+    )
+
+
 def build_parser():
     p = argparse.ArgumentParser(
         prog="lab",
@@ -1389,6 +1467,47 @@ def build_parser():
     s.set_defaults(
         func=cmd_research_augment,
     )
+
+    integration = sub.add_parser(
+        "integration",
+        help="Versioned CogniTrace integration contracts",
+    )
+    integration_sub = integration.add_subparsers(
+        dest="integration_cmd",
+        required=True,
+    )
+
+    s = integration_sub.add_parser(
+        "validate",
+        help="Validate a task, result, or receipt JSON document",
+    )
+    s.add_argument(
+        "kind",
+        choices=["task", "result", "receipt"],
+    )
+    s.add_argument("file", type=Path)
+    s.set_defaults(func=cmd_integration_validate)
+
+    s = integration_sub.add_parser(
+        "seal-result",
+        help="Compute and validate a deterministic result content hash",
+    )
+    s.add_argument("file", type=Path)
+    s.add_argument(
+        "--output",
+        type=Path,
+        default=None,
+        help="Write the sealed JSON; default is stdout",
+    )
+    s.set_defaults(func=cmd_integration_seal_result)
+
+    s = integration_sub.add_parser(
+        "verify-receipt",
+        help="Verify that a CogniTrace receipt identifies a result",
+    )
+    s.add_argument("result", type=Path)
+    s.add_argument("receipt", type=Path)
+    s.set_defaults(func=cmd_integration_verify_receipt)
 
     claim = sub.add_parser(
         "claim",

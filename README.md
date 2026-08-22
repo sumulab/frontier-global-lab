@@ -7,6 +7,9 @@ Canonical Claim lifecycle management, append-only relationship ledgers, and
 rebuildable read models. Real learning, market, outreach, review, Evidence, and
 Canonical Knowledge data live in a separate private workspace.
 
+Frontier v0.6 is the active development line for the versioned CogniTrace
+Phase B file/CLI contract. The v0.5.0 tag remains the stable public baseline.
+
 ## Install
 
 ```bash
@@ -23,6 +26,21 @@ uv run lab status
 uv run lab claim status
 ./scripts/release_check.sh
 ```
+
+## CogniTrace Phase B contract
+
+The v0.6 development line adds a narrow JSON file/process boundary without a
+shared database or cross-project domain model:
+
+```bash
+uv run lab integration validate task task.json
+uv run lab integration seal-result result-draft.json --output result.json
+uv run lab integration validate result result.json
+uv run lab integration verify-receipt result.json receipt.json
+```
+
+See `docs/v0.6/COGNITRACE_PHASE_B_CONTRACT.md` and the language-neutral schema
+under `docs/contracts/v0.1/`.
 
 ## Use an external workspace
 

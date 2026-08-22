@@ -11,4 +11,4 @@ uv run lab claim index-status
 ./scripts/smoke_test.sh
 git diff --check
 
-printf '\nFrontier v0.5 automated release checks passed.\n'
+printf '\nFrontier automated release checks passed.\n'

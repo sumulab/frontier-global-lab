@@ -1,0 +1,241 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://github.com/sumulab/frontier-global-lab/blob/main/docs/contracts/v0.1/frontier-cognitrace-contracts.schema.json",
+  "title": "Frontier and CogniTrace Phase B file contracts",
+  "oneOf": [
+    { "$ref": "#/$defs/task" },
+    { "$ref": "#/$defs/result" },
+    { "$ref": "#/$defs/receipt" }
+  ],
+  "$defs": {
+    "sha256": {
+      "type": "string",
+      "pattern": "^sha256:[0-9a-f]{64}$"
+    },
+    "identifier": {
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 160,
+      "pattern": "^\\S+$"
+    },
+    "reference": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["stable_id", "uri", "content_hash"],
+      "properties": {
+        "stable_id": { "$ref": "#/$defs/identifier" },
+        "uri": {
+          "type": "string",
+          "format": "uri",
+          "not": { "pattern": "^file:" }
+        },
+        "content_hash": { "$ref": "#/$defs/sha256" }
+      }
+    },
+    "artifactReference": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["stable_id", "uri", "content_hash", "media_type"],
+      "properties": {
+        "stable_id": { "$ref": "#/$defs/identifier" },
+        "uri": {
+          "type": "string",
+          "format": "uri",
+          "not": { "pattern": "^file:" }
+        },
+        "content_hash": { "$ref": "#/$defs/sha256" },
+        "media_type": {
+          "type": "string",
+          "pattern": "^[^/]+/[^/]+$"
+        }
+      }
+    },
+    "evidenceReference": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["stable_id", "uri", "content_hash", "review_status"],
+      "properties": {
+        "stable_id": { "$ref": "#/$defs/identifier" },
+        "uri": {
+          "type": "string",
+          "format": "uri",
+          "not": { "pattern": "^file:" }
+        },
+        "content_hash": { "$ref": "#/$defs/sha256" },
+        "review_status": {
+          "enum": ["approved", "needs_review", "rejected"]
+        }
+      }
+    },
+    "task": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "contract_version",
+        "task_id",
+        "action_id",
+        "issued_at",
+        "objective",
+        "evaluation_contract"
+      ],
+      "properties": {
+        "contract_version": {
+          "const": "cognitrace.frontier.task/0.1.0"
+        },
+        "task_id": { "$ref": "#/$defs/identifier" },
+        "action_id": { "$ref": "#/$defs/identifier" },
+        "issued_at": { "type": "string", "format": "date-time" },
+        "objective": { "type": "string", "minLength": 1 },
+        "evaluation_contract": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["ref", "content_hash", "locked_at"],
+          "properties": {
+            "ref": {
+              "type": "string",
+              "format": "uri",
+              "not": { "pattern": "^file:" }
+            },
+            "content_hash": { "$ref": "#/$defs/sha256" },
+            "locked_at": { "type": "string", "format": "date-time" }
+          }
+        },
+        "context_refs": {
+          "type": "array",
+          "items": { "$ref": "#/$defs/reference" }
+        },
+        "constraints": { "type": "object" }
+      }
+    },
+    "review": {
+      "oneOf": [
+        {
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["status"],
+          "properties": {
+            "status": { "const": "needs_review" },
+            "note": { "type": "string", "minLength": 1 }
+          }
+        },
+        {
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["status", "reviewed_by", "reviewed_at"],
+          "properties": {
+            "status": { "enum": ["approved", "rejected"] },
+            "reviewed_by": { "type": "string", "minLength": 1 },
+            "reviewed_at": { "type": "string", "format": "date-time" },
+            "note": { "type": "string", "minLength": 1 }
+          }
+        }
+      ]
+    },
+    "runtimeProvenance": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["provider", "model", "prompt_refs", "skill_refs", "budget"],
+      "properties": {
+        "provider": { "type": "string", "minLength": 1 },
+        "model": { "type": "string", "minLength": 1 },
+        "prompt_refs": {
+          "type": "array",
+          "items": { "$ref": "#/$defs/reference" }
+        },
+        "skill_refs": {
+          "type": "array",
+          "items": { "$ref": "#/$defs/reference" }
+        },
+        "budget": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["unit", "limit", "used"],
+          "properties": {
+            "unit": { "type": "string", "minLength": 1 },
+            "limit": { "type": "integer", "minimum": 0 },
+            "used": { "type": "integer", "minimum": 0 }
+          }
+        }
+      }
+    },
+    "result": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "contract_version",
+        "task_id",
+        "action_id",
+        "frontier_run_id",
+        "completed_at",
+        "result_summary",
+        "artifact_refs",
+        "evidence_refs",
+        "review",
+        "runtime_provenance",
+        "result_content_hash"
+      ],
+      "properties": {
+        "contract_version": {
+          "const": "frontier.cognitrace.result/0.1.0"
+        },
+        "task_id": { "$ref": "#/$defs/identifier" },
+        "action_id": { "$ref": "#/$defs/identifier" },
+        "frontier_run_id": { "$ref": "#/$defs/identifier" },
+        "completed_at": { "type": "string", "format": "date-time" },
+        "result_summary": { "type": "string", "minLength": 1 },
+        "artifact_refs": {
+          "type": "array",
+          "items": { "$ref": "#/$defs/artifactReference" }
+        },
+        "evidence_refs": {
+          "type": "array",
+          "items": { "$ref": "#/$defs/evidenceReference" }
+        },
+        "review": { "$ref": "#/$defs/review" },
+        "runtime_provenance": { "$ref": "#/$defs/runtimeProvenance" },
+        "result_content_hash": { "$ref": "#/$defs/sha256" }
+      }
+    },
+    "receiptError": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["code", "field", "message"],
+      "properties": {
+        "code": { "type": "string", "minLength": 1 },
+        "field": { "type": "string", "minLength": 1 },
+        "message": { "type": "string", "minLength": 1 }
+      }
+    },
+    "receipt": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "contract_version",
+        "submission_id",
+        "task_id",
+        "action_id",
+        "frontier_run_id",
+        "result_content_hash",
+        "received_at",
+        "status",
+        "errors"
+      ],
+      "properties": {
+        "contract_version": {
+          "const": "cognitrace.frontier.receipt/0.1.0"
+        },
+        "submission_id": { "$ref": "#/$defs/identifier" },
+        "task_id": { "$ref": "#/$defs/identifier" },
+        "action_id": { "$ref": "#/$defs/identifier" },
+        "frontier_run_id": { "$ref": "#/$defs/identifier" },
+        "result_content_hash": { "$ref": "#/$defs/sha256" },
+        "received_at": { "type": "string", "format": "date-time" },
+        "status": { "enum": ["accepted", "duplicate", "rejected"] },
+        "errors": {
+          "type": "array",
+          "items": { "$ref": "#/$defs/receiptError" }
+        }
+      }
+    }
+  }
+}

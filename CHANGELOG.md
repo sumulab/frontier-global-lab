@@ -1,5 +1,13 @@
 # Changelog
 
+## v0.6.0 — Unreleased
+
+- 将 CogniTrace 阶段 B 从冻结的 v0.5.0 基线移入 v0.6 开发线。
+- 新增任务包、Frontier 结果包与 CogniTrace 回执的独立版本化 JSON 合同。
+- 新增稳定 URI、SHA-256 内容引用、审核状态、运行来源和确定性结果封装。
+- 新增 `lab integration validate / seal-result / verify-receipt` 文件与 CLI 边界。
+- 明确回执由 CogniTrace 权威签发；Frontier 只验证，不共享数据库或领域类型。
+
 ## v0.5.0 — 2026-08-22
 
 - 将公开 Harness 引擎与私有真实运营 workspace 拆分为独立 Git 历史。
