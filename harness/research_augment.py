@@ -66,10 +66,9 @@ def _build_gap_prompt(report) -> str:
             "- Fill substantive research gaps, not numerical quotas.",
             "- Re-read the original workflow research questions and "
             "prioritize weakly supported areas.",
-            "- Especially look for Nigeria-specific evidence on "
-            "power reliability / diesel or backup-power dependence, "
-            "real project developers or buyers, financing, regulation, "
-            "and supply-chain fit where evidence is still weak.",
+            "- Prioritize evidence that directly addresses the "
+            "workflow's weakest topics, actors, financing, policy, "
+            "and implementation constraints.",
             "- Every new important external fact must follow "
             "search_web -> fetch_web_page -> record_claim_evidence.",
             "- Evidence reasoning must only explain how the source "

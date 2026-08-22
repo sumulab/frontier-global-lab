@@ -18,15 +18,33 @@ from .temporal_report import build_temporal_health_report
 from .canonical_claim_report import (
     build_canonical_claim_health_report,
 )
+from .canonical_claim_index import (
+    read_canonical_index_summary,
+    rebuild_canonical_index,
+)
+from .canonical_claim_relationship import (
+    append_claim_relationship,
+    read_claim_relationships,
+)
 from .canonical_claim_writer import (
+    append_claim_archived,
     append_claim_created,
+    append_claim_marked_needs_review,
     append_claim_reviewed,
+    append_claim_source_upgraded,
+    append_claim_superseded,
 )
 from .temporal_review import review_temporal_document
+from .project_root import resolve_project_root
+
+
+_PROJECT_ROOT_OVERRIDE: Path | None = None
 
 
 def repo_root() -> Path:
-    return Path(__file__).resolve().parents[1]
+    return resolve_project_root(
+        _PROJECT_ROOT_OVERRIDE
+    )
 
 
 def cmd_index(args):
@@ -457,6 +475,267 @@ def cmd_claim_review(args):
         print(
             "No canonical ledger changes were made."
         )
+
+
+def _print_claim_lifecycle_event(
+    event: dict,
+    *,
+    write: bool,
+) -> None:
+    action = "APPENDED" if write else "DRY RUN"
+
+    print(
+        f"{action}: {event['event_type']}"
+    )
+    print(f"event_id: {event['event_id']}")
+    print(f"claim_id: {event['claim_id']}")
+    print(
+        "previous_event_id: "
+        f"{event['previous_event_id']}"
+    )
+
+    if not write:
+        print(
+            "No canonical ledger changes were made."
+        )
+
+
+def cmd_claim_mark_needs_review(args):
+    root = repo_root()
+
+    try:
+        event = append_claim_marked_needs_review(
+            root,
+            args.claim_id,
+            reason=args.reason,
+            actor=args.actor,
+            dry_run=not args.write,
+        )
+    except (
+        ValueError,
+        FileNotFoundError,
+        RuntimeError,
+    ) as exc:
+        raise SystemExit(str(exc)) from exc
+
+    _print_claim_lifecycle_event(
+        event,
+        write=args.write,
+    )
+
+
+def cmd_claim_supersede(args):
+    root = repo_root()
+
+    try:
+        event = append_claim_superseded(
+            root,
+            args.claim_id,
+            superseded_by_claim_id=(
+                args.superseded_by
+            ),
+            reason=args.reason,
+            actor=args.actor,
+            dry_run=not args.write,
+        )
+    except (
+        ValueError,
+        FileNotFoundError,
+        RuntimeError,
+    ) as exc:
+        raise SystemExit(str(exc)) from exc
+
+    _print_claim_lifecycle_event(
+        event,
+        write=args.write,
+    )
+
+
+def cmd_claim_archive(args):
+    root = repo_root()
+
+    try:
+        event = append_claim_archived(
+            root,
+            args.claim_id,
+            reason=args.reason,
+            actor=args.actor,
+            dry_run=not args.write,
+        )
+    except (
+        ValueError,
+        FileNotFoundError,
+        RuntimeError,
+    ) as exc:
+        raise SystemExit(str(exc)) from exc
+
+    _print_claim_lifecycle_event(
+        event,
+        write=args.write,
+    )
+
+
+def cmd_claim_upgrade_source(args):
+    root = repo_root()
+    evidence_refs = []
+
+    for raw in args.evidence:
+        if ":" not in raw:
+            raise SystemExit(
+                "--evidence must use "
+                "RUN_ID:EVIDENCE_ID."
+            )
+
+        run_id, evidence_id = raw.split(":", 1)
+        evidence_refs.append((run_id, evidence_id))
+
+    try:
+        event = append_claim_source_upgraded(
+            root,
+            args.claim_id,
+            evidence_refs=evidence_refs,
+            reason=args.reason,
+            actor=args.actor,
+            dry_run=not args.write,
+        )
+    except (
+        ValueError,
+        FileNotFoundError,
+        RuntimeError,
+    ) as exc:
+        raise SystemExit(str(exc)) from exc
+
+    _print_claim_lifecycle_event(
+        event,
+        write=args.write,
+    )
+    print(
+        "source_snapshots: "
+        f"{len(event['payload']['evidence_refs'])}"
+    )
+
+
+def cmd_claim_relate(args):
+    root = repo_root()
+
+    try:
+        relationship = append_claim_relationship(
+            root,
+            relationship_type=args.type,
+            source_claim_id=args.source_claim_id,
+            target_claim_id=args.target_claim_id,
+            reason=args.reason,
+            actor=args.actor,
+            provenance_basis=args.basis,
+            provenance_note=args.note,
+            dry_run=not args.write,
+        )
+    except (
+        ValueError,
+        FileNotFoundError,
+        RuntimeError,
+    ) as exc:
+        raise SystemExit(str(exc)) from exc
+
+    action = "APPENDED" if args.write else "DRY RUN"
+
+    print(f"{action}: claim relationship")
+    print(
+        "relationship_id: "
+        f"{relationship['relationship_id']}"
+    )
+    print(
+        f"type: {relationship['relationship_type']}"
+    )
+    print(
+        f"source: {relationship['source_claim_id']}"
+    )
+    print(
+        f"target: {relationship['target_claim_id']}"
+    )
+
+    if not args.write:
+        print(
+            "No relationship ledger changes were made."
+        )
+
+
+def cmd_claim_relationships(args):
+    root = repo_root()
+    result = read_claim_relationships(root)
+
+    if not result.valid:
+        print("RELATIONSHIP LEDGER INVALID")
+
+        for issue in result.issues:
+            print(
+                f"  line {issue.line}: "
+                f"{issue.field}: {issue.message}"
+            )
+
+        raise SystemExit(2)
+
+    print(
+        "Canonical Claim Relationships: "
+        f"{len(result.relationships)}"
+    )
+
+    for relationship in result.relationships:
+        print(
+            relationship.relationship_id,
+            relationship.relationship_type,
+            relationship.source_claim_id,
+            "->",
+            relationship.target_claim_id,
+        )
+
+
+def _print_canonical_index_summary(summary):
+    print(
+        "Canonical Claim Index "
+        f"v{summary.schema_version}"
+    )
+    print(f"claims: {summary.claim_count}")
+    print(
+        "relationships: "
+        f"{summary.relationship_count}"
+    )
+    print(f"documents: {summary.document_count}")
+    print(f"evidence: {summary.evidence_count}")
+    print(
+        "projection_fingerprint: "
+        f"{summary.projection_fingerprint}"
+    )
+
+
+def cmd_claim_rebuild_index(args):
+    try:
+        summary = rebuild_canonical_index(
+            repo_root()
+        )
+    except (
+        ValueError,
+        FileNotFoundError,
+        RuntimeError,
+    ) as exc:
+        raise SystemExit(str(exc)) from exc
+
+    _print_canonical_index_summary(summary)
+
+
+def cmd_claim_index_status(args):
+    try:
+        summary = read_canonical_index_summary(
+            repo_root()
+        )
+    except (
+        ValueError,
+        FileNotFoundError,
+        RuntimeError,
+    ) as exc:
+        raise SystemExit(str(exc)) from exc
+
+    _print_canonical_index_summary(summary)
 
 
 def cmd_claim_status(args):
@@ -994,6 +1273,16 @@ def build_parser():
         prog="lab",
         description="Frontier Global Lab harness",
     )
+    p.add_argument(
+        "--project-root",
+        type=Path,
+        default=None,
+        help=(
+            "Frontier workspace root containing "
+            "10_Harness/config.json. Can also be "
+            "set with FRONTIER_PROJECT_ROOT."
+        ),
+    )
 
     sub = p.add_subparsers(
         dest="cmd",
@@ -1293,6 +1582,145 @@ def build_parser():
         func=cmd_claim_review,
     )
 
+    s = claim_sub.add_parser(
+        "mark-needs-review",
+        help=(
+            "Preview or append a transition from "
+            "active to needs_review"
+        ),
+    )
+    s.add_argument("claim_id")
+    s.add_argument("--reason", required=True)
+    s.add_argument("--actor", required=True)
+    s.add_argument(
+        "--write",
+        action="store_true",
+        help="Append the event; default is dry run",
+    )
+    s.set_defaults(
+        func=cmd_claim_mark_needs_review,
+    )
+
+    s = claim_sub.add_parser(
+        "supersede",
+        help=(
+            "Preview or append a superseded "
+            "lifecycle event"
+        ),
+    )
+    s.add_argument("claim_id")
+    s.add_argument(
+        "--superseded-by",
+        required=True,
+        help="Replacement canonical claim ID",
+    )
+    s.add_argument("--reason", required=True)
+    s.add_argument("--actor", required=True)
+    s.add_argument(
+        "--write",
+        action="store_true",
+        help="Append the event; default is dry run",
+    )
+    s.set_defaults(func=cmd_claim_supersede)
+
+    s = claim_sub.add_parser(
+        "archive",
+        help=(
+            "Preview or append an archived "
+            "lifecycle event"
+        ),
+    )
+    s.add_argument("claim_id")
+    s.add_argument("--reason", required=True)
+    s.add_argument("--actor", required=True)
+    s.add_argument(
+        "--write",
+        action="store_true",
+        help="Append the event; default is dry run",
+    )
+    s.set_defaults(func=cmd_claim_archive)
+
+    s = claim_sub.add_parser(
+        "upgrade-source",
+        help=(
+            "Append a v0.5 source snapshot for a "
+            "legacy canonical claim"
+        ),
+    )
+    s.add_argument("claim_id")
+    s.add_argument(
+        "--evidence",
+        action="append",
+        required=True,
+        metavar="RUN_ID:EVIDENCE_ID",
+    )
+    s.add_argument("--reason", required=True)
+    s.add_argument("--actor", required=True)
+    s.add_argument(
+        "--write",
+        action="store_true",
+        help="Append the migration event; dry run by default",
+    )
+    s.set_defaults(func=cmd_claim_upgrade_source)
+
+    s = claim_sub.add_parser(
+        "relate",
+        help=(
+            "Preview or append an independent "
+            "canonical claim relationship"
+        ),
+    )
+    s.add_argument("source_claim_id")
+    s.add_argument("target_claim_id")
+    s.add_argument(
+        "--type",
+        required=True,
+        choices=[
+            "supports",
+            "contradicts",
+            "qualifies",
+            "supersedes",
+        ],
+    )
+    s.add_argument("--reason", required=True)
+    s.add_argument("--actor", required=True)
+    s.add_argument(
+        "--basis",
+        default="manual",
+        choices=[
+            "manual",
+            "research_evidence",
+        ],
+    )
+    s.add_argument("--note", default=None)
+    s.add_argument(
+        "--write",
+        action="store_true",
+        help="Append the relationship; dry run by default",
+    )
+    s.set_defaults(func=cmd_claim_relate)
+
+    s = claim_sub.add_parser(
+        "relationships",
+        help="List projected claim relationships",
+    )
+    s.set_defaults(func=cmd_claim_relationships)
+
+    s = claim_sub.add_parser(
+        "rebuild-index",
+        help=(
+            "Rebuild the derived canonical SQLite "
+            "index from authoritative ledgers"
+        ),
+    )
+    s.set_defaults(func=cmd_claim_rebuild_index)
+
+    s = claim_sub.add_parser(
+        "index-status",
+        help="Show derived canonical index metadata",
+    )
+    s.set_defaults(func=cmd_claim_index_status)
+
     temporal = sub.add_parser(
         "temporal",
         help="Temporal knowledge operations",
@@ -1481,9 +1909,15 @@ def build_parser():
     return p
 
 
-def main():
-    args = build_parser().parse_args()
-    args.func(args)
+def main(argv=None):
+    global _PROJECT_ROOT_OVERRIDE
+
+    args = build_parser().parse_args(argv)
+    _PROJECT_ROOT_OVERRIDE = args.project_root
+    try:
+        args.func(args)
+    finally:
+        _PROJECT_ROOT_OVERRIDE = None
 
 
 if __name__ == "__main__":

@@ -1,63 +1,81 @@
-# Frontier Harness — v0.2 Quick Start
+# Frontier Harness v0.5 Quick Start
 
-## 目标
-今天开始实际工作，而不是继续搭平台。
-
-v0.2 只有一个 Orchestrator。它具备：
-- 本地知识库检索
-- Web Research
-- Workflow 驱动
-- SQLite Session
-- Draft-only 写入
-- Human approval 后提升为正式知识
-- Run log
+This directory is a synthetic public example workspace. It contains executable
+schemas and empty ledgers, but no real Frontier learning, market, Evidence,
+review, outreach, or Canonical Knowledge data. Operational data belongs in a
+separate private workspace.
 
 ## 安装
+
 ```bash
-./scripts/bootstrap.sh
+uv sync --dev
 ```
 
-或者：
+所有开发、测试与 smoke 命令都通过 uv 受管环境执行：
+
 ```bash
-python3 -m venv .venv
-source .venv/bin/activate
-pip install -e .
-lab index
+uv run lab --help
+uv run pytest -q
+./scripts/smoke_test.sh
 ```
 
-## 不调用模型也可以先运行
+## 研究运行
+
+不调用模型的本地路径：
+
 ```bash
-lab search "microgrid energy"
-lab start energy-research-001
-lab status
+uv run lab index
+uv run lab search "workspace boundary"
+uv run lab start local-smoke
+uv run lab status
 ```
 
-## 启动第一条真实 Agent Workflow
+需要模型的研究运行仍由外部 workspace 的 workflow、runtime policy、prompt、skill 和预算控制，输出先进入该 workspace 的 `10_Harness/runtime/drafts/`，不得自动写入 Canonical Knowledge。
+
+## Canonical Claim
+
 ```bash
-export OPENAI_API_KEY="..."
-export LAB_MODEL="gpt-5.6-sol"
-lab run energy-research-001
+uv run lab claim status
+uv run lab claim create --help
+uv run lab claim review --help
+uv run lab claim mark-needs-review --help
+uv run lab claim supersede --help
+uv run lab claim archive --help
 ```
 
-Agent 产物进入：
-`10_Harness/runtime/drafts/<run-id>/`
+所有改变账本的命令默认 dry-run；只有显式 `--write` 才追加事件。
 
-## 人工批准入库
-```bash
-lab promote \
-  10_Harness/runtime/drafts/<run-id>/research_brief.md \
-  03_Energy_Research/ENERGY_RESEARCH_001_RESULT.md
+生命周期只有：
 
-lab index
+```text
+needs_review
+active
+superseded
+archived
 ```
 
-这一步故意是人工操作：v0.2 不允许 Agent 直接覆盖正式知识。
+## Claim Relationship
 
-## 今天的第一条闭环
-1. `lab index`
-2. `lab run energy-research-001`
-3. 查看 drafts
-4. 人工修改/批准
-5. `lab promote ...`
-6. `lab index`
-7. 更新 Daily Review
+```bash
+uv run lab claim relate --help
+uv run lab claim relationships
+```
+
+关系只有 `supports / contradicts / qualifies / supersedes`，且关系不会隐式改变任一 Claim 生命周期。
+
+## 派生索引
+
+```bash
+uv run lab claim rebuild-index
+uv run lab claim index-status
+```
+
+`10_Harness/runtime/knowledge/canonical_claims.sqlite` 是可删除派生数据。权威历史始终是 Git 跟踪的 Claim 与 Relationship JSONL 账本。
+
+## 发布检查
+
+```bash
+./scripts/release_check.sh
+```
+
+正式发布还必须在私有 workspace 完成真实领域案例的人工审核与兼容性验证；公仓测试和空白样例不能替代领域人工判断，也不得复制真实案例作为公开 fixture。

@@ -10,12 +10,12 @@ from datetime import date, timedelta
 from pathlib import Path
 from uuid import uuid4
 
-from .canonical_claim_ledger import (
+from .canonical_claim_contract import (
     claim_ledger_path,
-    read_claim_ledger,
+    load_claim_event_schema,
 )
-from .canonical_claim_projector import (
-    project_claim_states,
+from .canonical_claim_ledger import (
+    read_claim_ledger,
 )
 from .evidence_provenance import (
     resolve_approved_evidence,
@@ -26,9 +26,6 @@ from .canonical_claim_projector import (
 from .runtime import (
     load_config,
     project_now,
-)
-from .review_provenance import (
-    validate_review_runs,
 )
 from .review_provenance import (
     validate_review_runs,
@@ -60,6 +57,21 @@ def _normalize_claim_text(
     return " ".join(
         normalized.split()
     ).casefold()
+
+
+def _required_text(
+    name: str,
+    value: str,
+) -> str:
+    if (
+        not isinstance(value, str)
+        or not value.strip()
+    ):
+        raise ValueError(
+            f"{name} must be a non-empty string."
+        )
+
+    return value.strip()
 
 
 def _resolve_claim_owner(
@@ -384,136 +396,11 @@ def append_claim_created(
         },
     }
 
-    ledger = claim_ledger_path(
-        root
-    ).resolve()
-
-    ledger.parent.mkdir(
-        parents=True,
-        exist_ok=True,
+    return _append_lifecycle_event(
+        root,
+        event,
+        dry_run=dry_run,
     )
-
-    original = ledger.read_bytes()
-    original_hash = _sha256(original)
-
-    event_line = (
-        json.dumps(
-            event,
-            ensure_ascii=False,
-            separators=(",", ":"),
-        ).encode("utf-8")
-        + b"\n"
-    )
-
-    candidate = original
-
-    if (
-        candidate
-        and not candidate.endswith(b"\n")
-    ):
-        candidate += b"\n"
-
-    candidate += event_line
-
-    temp_path: Path | None = None
-
-    try:
-        with tempfile.NamedTemporaryFile(
-            mode="wb",
-            dir=ledger.parent,
-            prefix=".canonical_claims.",
-            suffix=".tmp",
-            delete=False,
-        ) as handle:
-            temp_path = Path(handle.name)
-
-            handle.write(candidate)
-            handle.flush()
-            os.fsync(handle.fileno())
-
-        candidate_result = read_claim_ledger(
-            root,
-            path=temp_path,
-        )
-
-        if not candidate_result.valid:
-            detail = "; ".join(
-                f"line {issue.line}: "
-                f"{issue.field}: "
-                f"{issue.message}"
-                for issue
-                in candidate_result.issues
-            )
-
-            raise ValueError(
-                "Candidate canonical claim "
-                "ledger failed replay validation. "
-                + detail
-            )
-
-        if dry_run:
-            return event
-
-        # Optimistic concurrency guard:
-        # refuse to overwrite if another writer
-        # changed the ledger after our preflight.
-        latest = ledger.read_bytes()
-
-        if _sha256(latest) != original_hash:
-            raise RuntimeError(
-                "Canonical claim ledger changed "
-                "during append; retry the operation."
-            )
-
-        os.replace(
-            temp_path,
-            ledger,
-        )
-
-        temp_path = None
-
-        committed = read_claim_ledger(
-            root
-        )
-
-        if not committed.valid:
-            detail = "; ".join(
-                f"line {issue.line}: "
-                f"{issue.field}: "
-                f"{issue.message}"
-                for issue in committed.issues
-            )
-
-            raise RuntimeError(
-                "CRITICAL: canonical claim ledger "
-                "failed post-commit replay "
-                "verification. "
-                + detail
-            )
-
-        committed_events = [
-            item
-            for item in committed.events
-            if item.get("event_id")
-            == event["event_id"]
-        ]
-
-        if len(committed_events) != 1:
-            raise RuntimeError(
-                "CRITICAL: committed canonical "
-                "claim event could not be verified "
-                "exactly once in the authoritative "
-                "ledger."
-            )
-
-    finally:
-        if (
-            temp_path is not None
-            and temp_path.exists()
-        ):
-            temp_path.unlink()
-
-    return event
 
 
 def _append_lifecycle_event(
@@ -644,6 +531,267 @@ def _append_lifecycle_event(
             temp_path.unlink()
 
     return event
+
+
+def _load_claim_for_event(
+    root: Path,
+    claim_id: str,
+    event_type: str,
+):
+    for name, value in (
+        ("claim_id", claim_id),
+        ("event_type", event_type),
+    ):
+        if (
+            not isinstance(value, str)
+            or not value.strip()
+        ):
+            raise ValueError(
+                f"{name} must be a non-empty string."
+            )
+
+    current = read_claim_ledger(root)
+
+    if not current.valid:
+        detail = "; ".join(
+            f"line {issue.line}: "
+            f"{issue.field}: {issue.message}"
+            for issue in current.issues
+        )
+
+        raise ValueError(
+            "Canonical claim ledger is invalid; "
+            f"{event_type} refused. {detail}"
+        )
+
+    claim = project_claim_states(
+        current
+    ).get(claim_id)
+
+    if claim is None:
+        raise ValueError(
+            f"Canonical claim not found: {claim_id}"
+        )
+
+    schema = load_claim_event_schema(root)
+    policy = schema["event_types"].get(
+        event_type
+    )
+
+    if (
+        not isinstance(policy, dict)
+        or policy.get("legacy", False)
+    ):
+        raise ValueError(
+            f"Unsupported v0.5 lifecycle event: "
+            f"{event_type!r}."
+        )
+
+    allowed = policy.get(
+        "allowed_previous_statuses",
+        [],
+    )
+
+    if claim.status not in allowed:
+        raise ValueError(
+            f"Canonical claim {claim_id} cannot "
+            f"apply {event_type!r} from status "
+            f"{claim.status!r}."
+        )
+
+    return claim, policy
+
+
+def _append_status_event(
+    root: Path,
+    claim_id: str,
+    *,
+    event_type: str,
+    payload: dict,
+    actor: str,
+    dry_run: bool,
+) -> dict:
+    root = root.resolve()
+
+    if (
+        not isinstance(actor, str)
+        or not actor.strip()
+    ):
+        raise ValueError(
+            "actor must be a non-empty string."
+        )
+
+    claim, policy = _load_claim_for_event(
+        root,
+        claim_id,
+        event_type,
+    )
+
+    for field in policy.get(
+        "required_payload_fields",
+        [],
+    ):
+        value = payload.get(field)
+
+        if value is None or value == "":
+            raise ValueError(
+                f"{field} must be provided for "
+                f"{event_type}."
+            )
+
+    config = load_config(root)
+    now = project_now(config)
+
+    event = {
+        "event_id": "EV-" + uuid4().hex[:16],
+        "event_type": event_type,
+        "occurred_at": now.isoformat(),
+        "actor": actor.strip(),
+        "claim_id": claim.claim_id,
+        "previous_event_id": (
+            claim.head_event_id
+        ),
+        "payload": payload,
+    }
+
+    return _append_lifecycle_event(
+        root,
+        event,
+        dry_run=dry_run,
+    )
+
+
+def append_claim_marked_needs_review(
+    root: Path,
+    claim_id: str,
+    *,
+    reason: str,
+    actor: str,
+    dry_run: bool = False,
+) -> dict:
+    return _append_status_event(
+        root,
+        claim_id,
+        event_type=(
+            "claim_marked_needs_review"
+        ),
+        payload={
+            "reason": _required_text(
+                "reason",
+                reason,
+            )
+        },
+        actor=actor,
+        dry_run=dry_run,
+    )
+
+
+def append_claim_superseded(
+    root: Path,
+    claim_id: str,
+    *,
+    superseded_by_claim_id: str,
+    reason: str,
+    actor: str,
+    dry_run: bool = False,
+) -> dict:
+    return _append_status_event(
+        root,
+        claim_id,
+        event_type="claim_superseded",
+        payload={
+            "superseded_by_claim_id": (
+                _required_text(
+                    "superseded_by_claim_id",
+                    superseded_by_claim_id,
+                )
+            ),
+            "reason": _required_text(
+                "reason",
+                reason,
+            ),
+        },
+        actor=actor,
+        dry_run=dry_run,
+    )
+
+
+def append_claim_archived(
+    root: Path,
+    claim_id: str,
+    *,
+    reason: str,
+    actor: str,
+    dry_run: bool = False,
+) -> dict:
+    return _append_status_event(
+        root,
+        claim_id,
+        event_type="claim_archived",
+        payload={
+            "reason": _required_text(
+                "reason",
+                reason,
+            )
+        },
+        actor=actor,
+        dry_run=dry_run,
+    )
+
+
+def append_claim_source_upgraded(
+    root: Path,
+    claim_id: str,
+    *,
+    evidence_refs: list[tuple[str, str]],
+    reason: str,
+    actor: str,
+    dry_run: bool = False,
+) -> dict:
+    references = list(evidence_refs or [])
+
+    if not references:
+        raise ValueError(
+            "Source upgrade requires at least one "
+            "run/evidence reference."
+        )
+
+    resolved = []
+
+    for index, reference in enumerate(references):
+        if (
+            not isinstance(reference, (tuple, list))
+            or len(reference) != 2
+        ):
+            raise ValueError(
+                "Each evidence ref must be a "
+                "(run_id, evidence_id) pair; "
+                f"invalid ref at index {index}."
+            )
+
+        run_id, evidence_id = reference
+        resolved.append(
+            resolve_approved_evidence(
+                root,
+                run_id=run_id,
+                evidence_id=evidence_id,
+            )
+        )
+
+    return _append_status_event(
+        root,
+        claim_id,
+        event_type="claim_source_upgraded",
+        payload={
+            "evidence_refs": resolved,
+            "reason": _required_text(
+                "reason",
+                reason,
+            ),
+        },
+        actor=actor,
+        dry_run=dry_run,
+    )
 
 
 def append_claim_reviewed(

@@ -7,6 +7,14 @@ from datetime import datetime
 from pathlib import Path
 from typing import Any
 
+from .canonical_claim_contract import (
+    claim_ledger_path,
+    load_claim_event_schema,
+)
+from .canonical_source_validation import (
+    validate_source_snapshot,
+)
+
 
 @dataclass(frozen=True)
 class ClaimLedgerIssue:
@@ -26,47 +34,6 @@ class ClaimLedgerValidationResult:
     valid: bool
     events: list[dict[str, Any]]
     issues: list[ClaimLedgerIssue]
-
-
-def load_claim_event_schema(
-    root: Path,
-) -> dict:
-    path = (
-        root
-        / "10_Harness"
-        / "temporal"
-        / "claim_event_schema.json"
-    )
-
-    return json.loads(
-        path.read_text(
-            encoding="utf-8"
-        )
-    )
-
-
-def claim_ledger_path(
-    root: Path,
-) -> Path:
-    config_path = (
-        root
-        / "10_Harness"
-        / "config.json"
-    )
-
-    config = json.loads(
-        config_path.read_text(
-            encoding="utf-8"
-        )
-    )
-
-    relative = (
-        config["canonical_claim_store"][
-            "ledger"
-        ]
-    )
-
-    return root / relative
 
 
 def read_claim_ledger(
@@ -450,6 +417,7 @@ def _validate_event(
                         "last_verified_at."
                     ),
                 )
+
             )
 
         if (
@@ -643,6 +611,20 @@ def _validate_event(
                         ),
                     )
                 )
+
+    elif event_type == "claim_source_upgraded":
+        _validate_creation_provenance(
+            schema,
+            {
+                "basis": "research_evidence",
+                "evidence_refs": payload.get(
+                    "evidence_refs"
+                ),
+                "note": payload.get("reason"),
+            },
+            line_number,
+            issues,
+        )
 
 
 def _validate_timezone_timestamp(
@@ -883,6 +865,17 @@ def _validate_creation_provenance(
                         "Must be a non-empty "
                         "string or null."
                     ),
+                )
+            )
+
+        for field, message in (
+            validate_source_snapshot(ref)
+        ):
+            issues.append(
+                ClaimLedgerIssue(
+                    line=line_number,
+                    field=f"{ref_base}.{field}",
+                    message=message,
                 )
             )
 
@@ -1203,6 +1196,9 @@ def _validate_lifecycle_transitions(
                     ),
                 )
             )
+            continue
+
+        if policy.get("preserve_status", False):
             continue
 
         current_status[

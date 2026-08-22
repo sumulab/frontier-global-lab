@@ -106,14 +106,14 @@ def build_canonical_claim_health_report(
                 ),
                 as_of=claim.as_of,
                 creation_provenance_basis=(
-                    claim.creation_provenance[
+                    claim.source_provenance[
                         "basis"
                     ]
                 ),
                 creation_evidence_ids=tuple(
                     ref["evidence_id"]
                     for ref in
-                    claim.creation_provenance.get(
+                    claim.source_provenance.get(
                         "evidence_refs",
                         [],
                     )

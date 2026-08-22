@@ -25,11 +25,16 @@ class CanonicalClaimState:
     next_review_at: str | None
 
     head_event_id: str
+    status_changed_at: str
 
     superseded_by_claim_id: str | None
-    contradicted_by_claim_ids: tuple[str, ...]
+    legacy_contradicted_by_claim_ids: tuple[
+        str,
+        ...,
+    ]
 
     creation_provenance: dict[str, Any]
+    source_provenance: dict[str, Any]
     review_provenance: dict[str, Any] | None
 
 
@@ -69,9 +74,15 @@ def project_claim_states(
                 "last_verified_at": None,
                 "next_review_at": None,
                 "head_event_id": event_id,
+                "status_changed_at": event[
+                    "occurred_at"
+                ],
                 "superseded_by_claim_id": None,
-                "contradicted_by_claim_ids": (),
+                "legacy_contradicted_by_claim_ids": (),
                 "creation_provenance": payload[
+                    "creation_provenance"
+                ],
+                "source_provenance": payload[
                     "creation_provenance"
                 ],
                 "review_provenance": None,
@@ -100,6 +111,16 @@ def project_claim_states(
         ):
             state["status"] = "needs_review"
 
+        elif event_type == "claim_source_upgraded":
+            state["source_provenance"] = {
+                "basis": "research_evidence",
+                "evidence_refs": payload[
+                    "evidence_refs"
+                ],
+                "note": payload["reason"],
+                "upgrade_event_id": event_id,
+            }
+
         elif event_type == "claim_superseded":
             state["status"] = "superseded"
             state[
@@ -109,7 +130,7 @@ def project_claim_states(
             ]
 
         elif event_type == "claim_contradicted":
-            state["status"] = "contradicted"
+            state["status"] = "archived"
 
             targets = payload.get(
                 "contradicted_by_claim_ids",
@@ -117,16 +138,21 @@ def project_claim_states(
             )
 
             state[
-                "contradicted_by_claim_ids"
+                "legacy_contradicted_by_claim_ids"
             ] = tuple(targets)
 
-        elif (
-            event_type
-            == "claim_marked_historical"
-        ):
-            state["status"] = "historical"
+        elif event_type in {
+            "claim_archived",
+            "claim_marked_historical",
+        }:
+            state["status"] = "archived"
 
         state["head_event_id"] = event_id
+
+        if event_type != "claim_source_upgraded":
+            state["status_changed_at"] = event[
+                "occurred_at"
+            ]
 
     return {
         claim_id: CanonicalClaimState(

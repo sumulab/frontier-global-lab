@@ -1,5 +1,5 @@
 {
-  "schema_version": "0.2.0",
+  "schema_version": "0.3.0",
   "purpose": "Immutable event contract for the Git-tracked canonical claim ledger.",
   "common_required_fields": [
     "event_id",
@@ -47,6 +47,19 @@
         "active"
       ]
     },
+    "claim_source_upgraded": {
+      "required_payload_fields": [
+        "evidence_refs",
+        "reason"
+      ],
+      "preserve_status": true,
+      "allowed_previous_statuses": [
+        "needs_review",
+        "active",
+        "superseded",
+        "archived"
+      ]
+    },
     "claim_superseded": {
       "required_payload_fields": [
         "superseded_by_claim_id",
@@ -58,7 +71,31 @@
         "needs_review"
       ]
     },
+    "claim_archived": {
+      "required_payload_fields": [
+        "reason"
+      ],
+      "resulting_status": "archived",
+      "allowed_previous_statuses": [
+        "active",
+        "needs_review",
+        "superseded"
+      ]
+    },
+    "claim_marked_historical": {
+      "legacy": true,
+      "required_payload_fields": [
+        "reason"
+      ],
+      "resulting_status": "archived",
+      "allowed_previous_statuses": [
+        "active",
+        "needs_review",
+        "superseded"
+      ]
+    },
     "claim_contradicted": {
+      "legacy": true,
       "required_payload_fields": [
         "reason",
         "provenance"
@@ -66,22 +103,10 @@
       "optional_payload_fields": [
         "contradicted_by_claim_ids"
       ],
-      "resulting_status": "contradicted",
+      "resulting_status": "archived",
       "allowed_previous_statuses": [
         "active",
         "needs_review"
-      ]
-    },
-    "claim_marked_historical": {
-      "required_payload_fields": [
-        "reason"
-      ],
-      "resulting_status": "historical",
-      "allowed_previous_statuses": [
-        "active",
-        "needs_review",
-        "superseded",
-        "contradicted"
       ]
     }
   },
@@ -99,19 +124,25 @@
     "Every canonical claim begins with exactly one claim_created event.",
     "claim_created always creates a claim in needs_review status.",
     "Every claim_created event must preserve creation provenance. Research-evidence promotion must reference approved evidence snapshots; manual promotion must preserve a non-empty rationale.",
+    "Every new v0.5 research-evidence snapshot uses source_contract_version 0.1.0 and freezes Document identity, SHA-256 content hash, excerpt, context, location, reviewer, review time, and run provenance.",
+    "Legacy evidence snapshots without source_contract_version remain readable but new writers must not emit them.",
     "A claim becomes active only through claim_reviewed.",
     "Events are append-only; existing ledger lines are never mutated by normal lifecycle operations.",
     "Every event after claim_created must reference the immediately preceding event for the same claim.",
     "Event replay, not mutable ledger rows, determines current canonical claim state.",
     "Automatic freshness expiry is derived from next_review_at and does not require a ledger event merely because the date passed.",
     "claim_superseded does not delete the older claim.",
-    "claim_contradicted preserves the contradicted claim and its prior provenance.",
-    "A material factual replacement is represented by a new canonical claim plus an explicit lifecycle relationship, not by rewriting claim text.",
+    "Contradiction is represented by an independent contradicts relationship and does not implicitly change lifecycle.",
+    "A material factual replacement is represented by a new canonical claim plus an explicit supersedes relationship and a controlled claim_superseded lifecycle event, not by rewriting claim text.",
     "occurred_at must include timezone information.",
     "Canonical claim IDs and event IDs must remain stable across runtime index rebuilds.",
     "Lifecycle events must follow the allowed previous-status transitions declared by their event type.",
     "For claim_created, as_of may be earlier than created_at because historical real-world facts may enter canonical knowledge after the period they describe.",
-    "Canonical claim review provenance uses scope 'claim'. Document-level scope semantics belong to Temporal Knowledge document review, not Canonical Claim review."
+    "Canonical claim review provenance uses scope 'claim'. Document-level scope semantics belong to Temporal Knowledge document review, not Canonical Claim review.",
+    "claim_marked_historical and claim_contradicted are read-only v0.4 compatibility event types; v0.5 writers must not emit them.",
+    "Legacy claim_marked_historical projects to archived.",
+    "Legacy claim_contradicted projects to archived and may produce independent contradicts relationships from its target references.",
+    "claim_source_upgraded appends a validated v0.5 source snapshot without rewriting immutable creation provenance or changing lifecycle status."
   ],
   "review_scope_values": [
     "claim"

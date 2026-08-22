@@ -1,69 +1,74 @@
-# Frontier Harness Architecture — v0.2
+# Frontier Harness Architecture — v0.5
 
-## 1. 架构决策
-v0.2 将“知识库规范化”和“最小可运行 Harness”合并为一个版本，但内部按两层实现：
+This document describes the public engine contract. The bundled `10_Harness/`
+tree is an empty synthetic example; real domain authorities live in a separate
+private workspace.
 
-1. **Knowledge Layer**：Markdown/CSV + Git + 本地 FTS 索引。
-2. **Execution Layer**：One Orchestrator + Skills + Workflow + Session + Draft-only writes + Human approval。
+## 1. 产品边界
 
-不是多 Agent 系统。v0.2 的目标是先把闭环跑通。
+Frontier 是领域执行与专业知识层，负责能源研究、英语实践、国际市场行动、来源 Evidence、Claim、Canonical Knowledge 与人工审核。
 
-## 2. 数据流
+Frontier 不拥有 CogniTrace 的目标、盲区、行动前评价合同或最终评价，也不共享 CogniTrace 数据库。
 
-User Goal
-→ Orchestrator
-→ Local Retrieval
-→ Optional Web Research
-→ Reason / Tool Calls
-→ Draft Artifact
-→ Human Review
-→ Promote to Canonical Knowledge
-→ Re-index
-→ Next Run
+## 2. 分层
 
-## 3. 为什么暂不做重 RAG
-当前知识量小，先使用 SQLite FTS5：可解释、零额外服务、便于调试。
-当出现以下信号后进入 v0.3 Hybrid RAG：
-- 文档达到数百/上千且关键词难以覆盖同义概念；
-- 同一问题频繁跨主题检索失败；
-- 已有知识重复研究明显增加。
+```text
+Research Execution
+  -> Run / Provider / Prompt / Skill / Budget
+  -> Source / Evidence / Research Claim / Human Review
 
-v0.3 再加入 embedding + keyword + metadata filter；向量库只做可重建索引，不做唯一事实源。
+Canonical Knowledge Authority
+  -> Canonical Claim JSONL ledger
+  -> Claim Relationship JSONL ledger
+  -> Document and Evidence provenance snapshots
 
-## 4. Human Approval
-Agent 不直接改正式知识库。
-所有 agent 生成内容先进入：
-`10_Harness/runtime/drafts/`
+Derived Read Models
+  -> Canonical Claim SQLite projection
+  -> Knowledge FTS index
+  -> CLI health and review-due reports
+```
 
-人工确认后使用 `lab promote` 写入 canonical path。
+Git 跟踪 JSONL 是权威历史。SQLite 与 FTS 都是可删除、可重建的投影。
 
-## 5. v0.2 成功标准
-- `lab index`：建立本地索引。
-- `lab search`：能查到知识。
-- `lab start <workflow>`：能生成一个 run/context pack。
-- `lab run <workflow>`：配置 API Key 后，Orchestrator 能结合本地检索 + Web Search 完成一轮研究并写 draft。
-- `lab promote`：人工批准后将 draft 提升到正式知识库。
-- 每次 run 有独立日志，可追踪。
+## 3. Canonical Claim
 
-## 6. 技术选择
-- Python 3.11+
-- SQLite FTS5：本地检索
-- OpenAI Agents SDK：agent loop / tools / session / tracing
-- OpenAI hosted WebSearchTool：需要外部研究时启用
-- Git：版本、审计与回滚
+Research Claim 不因有 Evidence 自动晋升。显式人工控制的创建操作产生 Canonical Claim，初始状态为 `needs_review`；人工审核后才成为 `active`。
 
-## 7. v0.3 以后
-- Hybrid RAG
-- Metadata schema 强化
-- Dashboard
-- Evaluations
-- 某些 Skill 独立为专门 Agent
-- MCP / 外部 CRM / 邮件等连接（按真实需求再加）
+持久生命周期：
 
+```text
+needs_review -> active -> needs_review
+needs_review | active -> superseded
+needs_review | active | superseded -> archived
+```
 
-## 8. v0.2 的边界
-本版本已经具备“真实知识库 + 可运行 Harness”的最小骨架，但不把以下内容提前做复杂：
-- 不做独立 Dashboard；先用 CLI + Markdown。
-- 不做向量数据库；先以 FTS5 建立可解释检索基线。
-- 不做多 Agent；先观察单 Orchestrator 的真实瓶颈。
-- 不自动发送邮件、不自动写入正式知识；涉及外部动作与 canonical write 均保留人工批准。
+非法转换失败关闭。到达 `next_review_at` 只形成派生 review-due 结果，不静默修改权威账本。
+
+## 4. Claim Relationship
+
+`supports / contradicts / qualifies / supersedes` 是独立不可变事实，具有自己的 ID、方向、理由、actor、时间和 provenance。
+
+关系和生命周期分别投影。Legacy v0.4 contradiction 通过兼容适配器读取，新 writer 不再产生 legacy 事件。
+
+## 5. 来源冻结
+
+新的 v0.5 research-evidence promotion 冻结：
+
+- 确定性 Document ID 与 Document Version ID；
+- normalized URL、publisher、published/retrieved time；
+- 强制 SHA-256 content hash；
+- excerpt、context、location；
+- reviewer、reviewed_at、review note；
+- run、workflow、provider/prompt/skill/budget provenance 的稳定引用。
+
+## 6. 写入安全
+
+- 所有 CLI 写入默认 dry-run；
+- append 前验证当前权威账本；
+- 候选文件完整回放验证后才原子替换；
+- 使用内容哈希做乐观并发检查；
+- commit 后再次回放并验证唯一 ID。
+
+## 7. 非目标
+
+v0.5 不引入多 Agent、向量数据库、知识图谱 UI、自动置信度、决策自动化或正式 CogniTrace 集成代码。

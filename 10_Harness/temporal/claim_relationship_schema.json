@@ -1,0 +1,34 @@
+{
+  "schema_version": "0.1.0",
+  "purpose": "Immutable semantic relationship contract for persistent canonical claims.",
+  "required_fields": [
+    "relationship_id",
+    "relationship_type",
+    "source_claim_id",
+    "target_claim_id",
+    "reason",
+    "occurred_at",
+    "actor",
+    "provenance"
+  ],
+  "relationship_types": [
+    "supports",
+    "contradicts",
+    "qualifies",
+    "supersedes"
+  ],
+  "provenance_basis_values": [
+    "manual",
+    "research_evidence",
+    "legacy_event"
+  ],
+  "rules": [
+    "Relationships are immutable append-only facts.",
+    "Source and target must reference distinct existing canonical claims.",
+    "A relationship does not implicitly change either claim lifecycle.",
+    "Duplicate relationship IDs fail closed.",
+    "An identical source, target, and type tuple may be recorded only once.",
+    "occurred_at must be a timezone-aware ISO 8601 timestamp.",
+    "New v0.5 relationships require a non-empty reason, actor, and provenance basis."
+  ]
+}

@@ -40,20 +40,9 @@ def evaluate_claim_health(
             ),
         )
 
-    if claim.status == "contradicted":
+    if claim.status == "archived":
         return CanonicalClaimHealth(
-            lifecycle="contradicted",
-            review_due=False,
-            message=(
-                "Canonical claim is retained for "
-                "history but should not be treated "
-                "as current knowledge."
-            ),
-        )
-
-    if claim.status == "historical":
-        return CanonicalClaimHealth(
-            lifecycle="historical",
+            lifecycle="archived",
             review_due=False,
             message=(
                 "Canonical claim is retained as "

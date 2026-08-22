@@ -1,0 +1,23 @@
+{
+  "schema_version": "0.1.0",
+  "purpose": "Lightweight immutable identity for a retrieved source document version used by canonical evidence.",
+  "required_fields": [
+    "document_id",
+    "document_version_id",
+    "url",
+    "content_hash",
+    "retrieved_at"
+  ],
+  "optional_fields": [
+    "title",
+    "publisher",
+    "published_at"
+  ],
+  "rules": [
+    "document_id is deterministic from the normalized source URL.",
+    "document_version_id is deterministic from normalized URL plus content hash.",
+    "content_hash is mandatory for all v0.5 canonical evidence snapshots.",
+    "A changed content hash creates a new document_version_id without changing document_id.",
+    "Document identity stores provenance only and is not a document management system."
+  ]
+}

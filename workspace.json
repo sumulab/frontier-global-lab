@@ -1,0 +1,11 @@
+{
+  "workspace_contract_version": "0.1.0",
+  "workspace_id": "frontier-public-example",
+  "visibility": "public-example",
+  "engine": {
+    "name": "frontier-global-lab",
+    "version": "0.5.0"
+  },
+  "harness_root": "10_Harness",
+  "data_policy": "synthetic-only"
+}

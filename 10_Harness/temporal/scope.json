@@ -2,20 +2,12 @@
   "version": "0.1.0",
   "rules": [
     {
-      "path": "00_MASTER_PLAN.md",
-      "knowledge_type": "strategy"
+      "path": "README.md",
+      "knowledge_type": "public_documentation"
     },
     {
-      "path": "01_Strategy/HALF_YEAR_ROADMAP.md",
-      "knowledge_type": "strategy"
-    },
-    {
-      "path": "01_Strategy/DECISIONS.md",
-      "knowledge_type": "decision_log"
-    },
-    {
-      "glob": "03_Energy_Research/*.md",
-      "knowledge_type": "research"
+      "glob": "docs/**/*.md",
+      "knowledge_type": "public_documentation"
     }
   ]
 }

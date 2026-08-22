@@ -1,12 +1,11 @@
 {
-  "schema_version": "0.1.0",
+  "schema_version": "0.2.0",
   "purpose": "Persistent lifecycle contract for canonical knowledge claims. Research claims inside run-scoped evidence databases are not canonical claims.",
   "claim_status": [
-    "active",
     "needs_review",
+    "active",
     "superseded",
-    "contradicted",
-    "historical"
+    "archived"
   ],
   "required_identity_fields": [
     "claim_id",
@@ -27,12 +26,13 @@
     ],
     "needs_review": [],
     "superseded": [],
-    "contradicted": [],
-    "historical": []
+    "archived": []
   },
   "relation_types": [
-    "supersedes",
-    "contradicts"
+    "supports",
+    "contradicts",
+    "qualifies",
+    "supersedes"
   ],
   "provenance_types": [
     "research_evidence",
@@ -49,7 +49,8 @@
     "as_of": "Real-world date through which the claim is intended to describe reality.",
     "last_verified_at": "Most recent date on which the canonical claim was substantively revalidated.",
     "next_review_at": "Date on which an active claim becomes due for freshness review.",
-    "relations": "Explicit lifecycle relationships to other canonical claims.",
+    "status_changed_at": "Derived timestamp of the current lifecycle head event; it is not duplicated in event payloads.",
+    "relations": "Independent semantic relationships to other canonical claims; relationships do not implicitly change lifecycle.",
     "provenance": "Audit trail linking the canonical claim to research evidence or a documented manual basis."
   },
   "rules": [
@@ -57,16 +58,44 @@
     "A research claim does not become canonical merely because supporting evidence exists.",
     "Canonical promotion requires an explicit human-controlled promotion step.",
     "Canonical claim text is not silently rewritten when reality changes; create a new claim and relate it using supersedes when appropriate.",
-    "A contradicted claim remains in history and is not deleted.",
-    "A superseded claim remains queryable as historical knowledge.",
+    "Contradiction is a claim relationship, not a v0.5 lifecycle status.",
+    "A superseded or archived claim remains queryable as historical knowledge.",
     "Document-level active status does not imply every canonical claim is active.",
     "Claim-level lifecycle changes must preserve provenance and history.",
     "Templates, drafts, and unpromoted research output do not create canonical claims.",
     "No automated agent may mark a canonical claim active without a defined review or promotion gate.",
     "The Git-tracked canonical claim ledger is the authoritative persistent history.",
     "The runtime SQLite canonical claim index is derived state and may be deleted and rebuilt.",
-    "Lifecycle history must not depend solely on mutable SQLite rows."
+    "Lifecycle history must not depend solely on mutable SQLite rows.",
+    "Legacy claim_marked_historical events project to archived without rewriting ledger history.",
+    "Legacy claim_contradicted events project to archived plus explicit contradicts relationships; new v0.5 writers must not emit that event."
   ],
+  "legal_transitions": {
+    "claim_created": {
+      "from": [],
+      "to": "needs_review"
+    },
+    "claim_reviewed": {
+      "from": ["needs_review", "active"],
+      "to": "active"
+    },
+    "claim_marked_needs_review": {
+      "from": ["active"],
+      "to": "needs_review"
+    },
+    "claim_superseded": {
+      "from": ["needs_review", "active"],
+      "to": "superseded"
+    },
+    "claim_archived": {
+      "from": ["needs_review", "active", "superseded"],
+      "to": "archived"
+    }
+  },
+  "legacy_event_projection": {
+    "claim_marked_historical": "archived",
+    "claim_contradicted": "archived"
+  },
   "storage_semantics": {
     "source_of_truth": "Git-tracked append-only JSONL ledger",
     "runtime_index": "SQLite materialized view rebuilt from ledger",

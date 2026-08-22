@@ -4,6 +4,9 @@ import re
 
 from pathlib import Path
 
+from .canonical_document import (
+    freeze_document_identity,
+)
 from .evidence_store import EvidenceStore
 from .review_provenance import (
     validate_review_runs,
@@ -148,7 +151,34 @@ def resolve_approved_evidence(
         or {}
     )
 
+    source_url = _normalize_source_url(
+        context["source_url"]
+    )
+    content_hash = source.get("content_hash")
+    retrieved_at = context.get("retrieved_at")
+    document = freeze_document_identity(
+        url=source_url,
+        content_hash=content_hash,
+        retrieved_at=retrieved_at,
+        title=context.get("source_title"),
+        publisher=context.get("publisher"),
+        published_at=context.get("published_at"),
+    )
+    context_excerpt = context.get(
+        "context_excerpt"
+    )
+
+    if (
+        not isinstance(context_excerpt, str)
+        or not context_excerpt.strip()
+    ):
+        raise ValueError(
+            f"Evidence {evidence_id} has no frozen "
+            "source context for canonical promotion."
+        )
+
     return {
+        "source_contract_version": "0.1.0",
         "run": run_snapshot,
         "evidence_id": (
             context["evidence_id"]
@@ -159,11 +189,7 @@ def resolve_approved_evidence(
         "effective_claim": (
             context["effective_claim"]
         ),
-        "source_url": (
-            _normalize_source_url(
-                context["source_url"]
-            )
-        ),
+        "source_url": source_url,
         "source_title": (
             context.get("source_title")
         ),
@@ -176,12 +202,17 @@ def resolve_approved_evidence(
         "retrieved_at": (
             context.get("retrieved_at")
         ),
-        "source_content_hash": (
-            source.get("content_hash")
-        ),
+        "source_content_hash": content_hash,
+        "document": document,
         "excerpt": (
             context["excerpt"]
         ),
+        "context": context_excerpt.strip(),
+        "location": {
+            "section_heading": context.get(
+                "section_heading"
+            ),
+        },
         "review": {
             "decision": "approved",
             "reviewer": reviewer,
