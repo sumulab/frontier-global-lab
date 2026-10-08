@@ -13,6 +13,8 @@ ALLOWED_TOP_LEVEL = {
     ".env.example",
     ".github",
     ".gitignore",
+    ".python-version",
+    "AGENTS.md",
     "10_Harness",
     "CHANGELOG.md",
     "CONTRIBUTING.md",
